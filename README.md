@@ -1,2 +1,2 @@
 # FaceSouls
-Face Souls: learning the secrets of FS character creator
+[Read the wiki](../../wiki)
