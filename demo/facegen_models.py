@@ -1,14 +1,11 @@
-from facegen import *
+from facegen_files import *
 import numpy as np
 
 class FaceGenSSM: # Statistical Shape Model
-    def __init__ (self, lof):
-        if len(lof) != 3:
-            raise AssertionError("Wrong number of files.")
-
-        ctlFile = FaceGenCTL(lof[0])
-        egmFile = FaceGenEGM(lof[1])
-        triFile = FaceGenTRI(lof[2])
+    def __init__ (self, ctlfname, egmfname, trifname):
+        ctlFile = FaceGenCTL(ctlfname)
+        egmFile = FaceGenEGM(egmfname)
+        triFile = FaceGenTRI(trifname)
 
         # CTL
         self.GS = np.uint32(ctlFile.GS)
@@ -112,100 +109,3 @@ class FaceGenSSM: # Statistical Shape Model
         self.gsFaceData.fill(0.0)
         self.gaFaceData.fill(0.0)
         return self
-
-
-class CharacterCreator (FaceGenSSM):
-    def __init__ (self, lof):
-        super().__init__(lof[:3])
-        self.geoSliders = dict()
-        with open(lof[3],'r') as f:
-            s = f.read()
-            rows = s.split(';')
-            del rows[-1]
-            for r in rows:
-                cells = list(map(lambda s: s.strip(), r.split(',')))
-                if len(cells) > 0:
-                    slider = CharacterCreator.Slider(*cells)
-                    self.geoSliders[cells[0]] = slider
-        self.updateSliders()
-
-    def updateSliders (self):
-        for k,s in self.geoSliders.items():
-            if s.fgID == 'A':
-                s.debValue = self.getAge()
-                s.guiValue = s.float2int(s.debValue)
-            elif s.fgID == 'G':
-                s.debValue = self.getGender()
-                s.guiValue = s.float2int(s.debValue)
-            elif s.fgID == 'C':
-                s.debValue = self.getCaricature()
-                s.guiValue = s.float2int(s.debValue)
-            else:
-                s.debValue = self.getSymCtl(s.fgID)
-                s.guiValue = s.float2int(s.debValue)
-        return self
-
-    def changeFace1 (self, key, value, debug = False): # Des & DS1
-        slider = self.geoSliders[key]
-        if debug:
-            slider.guiValue = slider.float2int(value)
-            slider.debValue = value
-        else:
-            slider.guiValue = value
-            slider.debValue = slider.int2float(value)
-        if slider.fgID == 'A':
-            self.setAge(slider.debValue)
-        elif slider.fgID == 'G':
-            self.setGender(slider.debValue)
-        elif slider.fgID == 'C':
-            self.setCaricature(slider.debValue)
-        elif slider.menu != None:
-            self.setSymCtl(slider.fgID, slider.debValue)
-        else:
-            self.setSymCtl(slider.fgID, 0.0)
-        return self.updateSliders()
-
-    def changeFace2 (self, key, value, debug = False): # BB, DS3 & ER
-        if debug:
-            self.geoSliders[key].debValue = value
-        else:
-            self.geoSliders[key].guiValue = value
-        self.setZero()
-        for k,s in self.geoSliders.items():
-            if not debug:
-                s.debValue = s.int2float(s.guiValue)
-            if s.fgID == 'A':
-                self.setAge(s.debValue)
-            elif s.fgID == 'G':
-                self.setGender(s.debValue)
-            elif s.fgID == 'C':
-                self.setCaricature(s.debValue)
-            elif s.menu != None:
-                self.setSymCtl(s.fgID, s.debValue)
-            else:
-                self.setSymCtl(s.fgID, 0.0)
-        return self
-
-    class Slider:
-        def __init__ (self, fgID, menu = None, label = None, rangeMin = -10.0, rangeMax = 10.0, guiMin = 0, guiMax = 255):
-            try:
-                self.fgID = int(fgID)
-            except:
-                self.fgID = fgID
-            self.menu = menu
-            self.label = label
-            self.rangeMin = np.float32(rangeMin)
-            self.rangeMax = np.float32(rangeMax)
-            self.guiMin = np.uint8(guiMin)
-            self.guiMax = np.uint8(guiMax)
-            self.debValue = (self.rangeMin + self.rangeMax)/2.0
-            self.guiValue = self.float2int(self.debValue)
-
-        def int2float (self, x):
-            y = self.rangeMin + (self.rangeMax - self.rangeMin) * x/255
-            return y
-
-        def float2int (self, x):
-            y = 255 * (x - self.rangeMin) / (self.rangeMax - self.rangeMin)
-            y = max(min(y,255),0)
-            return int(y)

@@ -1,6 +1,5 @@
 import struct
 
-
 def _Decoder (b, start = 0, endian = '<'):
     def bread (fmt):
         fmt = endian + fmt
