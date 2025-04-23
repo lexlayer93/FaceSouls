@@ -1,16 +1,18 @@
 import struct
 
-def Decoder (b, endian = '<'):
+
+def _Decoder (b, start = 0, endian = '<'):
     def bread (fmt):
         fmt = endian + fmt
         out = struct.unpack_from(fmt, b, bread.offset)
         bread.offset += struct.calcsize(fmt)
         return out
-    bread.offset = 0
+    bread.offset = start
     return bread
 
+
 class FaceGenCTL:
-    magic = "FRCTL001"
+    magic = b"FRCTL001"
 
     def __init__(self, filename):
         self.load(filename)
@@ -20,8 +22,10 @@ class FaceGenCTL:
         b = f.read()
         f.close()
 
-        ctl_read = Decoder(b)
-        assert(ctl_read('8s')[0].decode() == FaceGenCTL.magic)
+        if b[:8] != FaceGenCTL.magic:
+            raise AssertionError("Wrong magic number.")
+
+        ctl_read = _Decoder(b, 8)
 
         self.geoBasisVersion, self.texBasisVersion = ctl_read('2L') # Geometry & Texture Basis Versions
         self.GS, self.GA, self.TS, self.TA = ctl_read('4L') # N of GS, GA, TS & TA modes
@@ -88,7 +92,7 @@ class FaceGenCTL:
 
 
 class FaceGenEGM:
-    magic = "FREGM002"
+    magic = b"FREGM002"
 
     def __init__ (self, filename):
         self.load(filename)
@@ -98,34 +102,100 @@ class FaceGenEGM:
         b = f.read()
         f.close()
 
-        egm_unpack = Decoder(b)
-        assert(egm_unpack('8s')[0].decode() == FaceGenEGM.magic)
+        if b[:8] != FaceGenEGM.magic:
+            raise AssertionError("Wrong magic number.")
 
-        self.nVert, = egm_unpack('L') # Number of vertices
-        self.GS, self.GA = egm_unpack('2L') # N of SS & AS modes
-        self.geoBasisVersion, = egm_unpack('L') # Geometry Basis Version
+        egm_read = _Decoder(b, 8)
 
-        egm_unpack('40s') # Reserved
+        self.nVert, = egm_read('L') # Number of vertices = V + K in TRI file
+        self.GS, self.GA = egm_read('2L') # N of GS & GA modes
+        self.geoBasisVersion, = egm_read('L') # Geometry Basis Version
+
+        egm_read('40s') # Reserved
 
         self.gsScale = [None] * self.GS
         self.gsDelta = [ [None]*self.nVert for _ in range(self.GS) ]
-
         for i in range(self.GS):
-            self.gsScale[i], = egm_unpack('f')
+            self.gsScale[i], = egm_read('f')
             for j in range(self.nVert):
-                self.gsDelta[i][j] = egm_unpack('3h')
-
+                self.gsDelta[i][j] = egm_read('3h')
 
         self.gaScale = [None] * self.GA
         self.gaDelta = [ [None]*self.nVert for _ in range(self.GA) ]
         for i in range(self.GA):
-            self.gaScale[i], = egm_unpack('f')
+            self.gaScale[i], = egm_read('f')
             for j in range(self.nVert):
-                self.gaDelta[i][j] = egm_unpack('3h')
+                self.gaDelta[i][j] = egm_read('3h')
+
+
+class FaceGenEGT:
+    magic = b"FREGT003"
+
+    def __init__(self, filename):
+        self.load(filename)
+
+    def load (self, filename):
+        f = open(filename, 'rb')
+        b = f.read()
+        f.close()
+
+        if b[:8] != FaceGenEGT.magic:
+            raise AssertionError("Wrong magic number.")
+
+        egt_read = _Decoder(b, 8)
+
+        self.nRow, self.nCol = egt_read('2L') # of image
+        self.TS, self.TA = egt_read('2L')
+        self.texBasisVersion, = egt_read('L')
+        egt_read('36s') # Reserved
+
+        self.tsScale = [None] * self.TS
+        self.tsRDelta = [None] * self.TS
+        self.tsGDelta = [None] * self.TS
+        self.tsBDelta = [None] * self.TS
+        for i in range(self.TS):
+            self.tsScale[i] = egt_read('f')
+            self.tsRDelta[i] = egt_read(f'{self.nRow*self.nCol}b')
+            self.tsGDelta[i] = egt_read(f'{self.nRow*self.nCol}b')
+            self.tsBDelta[i] = egt_read(f'{self.nRow*self.nCol}b')
+
+        self.taScale = [None] * self.TA
+        self.taRDelta = [None] * self.TA
+        self.taGDelta = [None] * self.TA
+        self.taBDelta = [None] * self.TA
+        for i in range(self.TA):
+            self.taScale[i] = egt_read('f')
+            self.taRDelta[i] = egt_read(f'{self.nRow*self.nCol}b')
+            self.taGDelta[i] = egt_read(f'{self.nRow*self.nCol}b')
+            self.taBDelta[i] = egt_read(f'{self.nRow*self.nCol}b')
+
+
+class FaceGenFIM:
+    magic = b"FIMFF001"
+
+    def __init__ (self, filename):
+        self.load(filename)
+
+    def load (self, filename):
+        f = open(filename, 'rb')
+        b = f.read()
+        f.close()
+
+        if b[:8] != FaceGenFIM.magic:
+            raise AssertionError("Wrong magic number.")
+
+        fim_read = _Decoder(b, 8)
+
+        self.imageWidth = fim_read('L')
+        self.imageHeight = fim_read('L')
+        fim_read('48s') # Unused
+
+        aux = fim_read(f'{2*self.imageWidth*self.imageHeight}f')
+        self.imageUV = list(zip(*[iter(aux)]*2)) # image resampling coordinates
 
 
 class FaceGenTRI:
-    magic = "FRTRI003"
+    magic = b"FRTRI003"
 
     def __init__ (self, filename):
         self.load(filename)
@@ -135,26 +205,39 @@ class FaceGenTRI:
         b = f.read()
         f.close()
 
-        tri_unpack = Decoder(b)
-        assert(tri_unpack('8s')[0].decode() == FaceGenTRI.magic)
+        if b[:8] != FaceGenTRI.magic:
+            raise AssertionError("Wrong magic number.")
 
-        self.V, self.T, self.Q = tri_unpack('3i') # N of vertices, triangles & quads
-        self.LV, self.LS = tri_unpack('2i') # N of labelled vertices & surface points
-        self.X, = tri_unpack('i') # N of texture coordinates
-        self.ext, = tri_unpack('i') # Extension info
-        self.Md, self.Ms = tri_unpack('2i') # N of labelled difference & stat morphs
-        self.K, = tri_unpack('i') # total N of stat morph vertices
-        tri_unpack('16c') # Reserved
+        tri_read = _Decoder(b, 8)
 
-        self.vertices = [tri_unpack('3f') for i in range(self.V + self.K)]
-        self.triangles = [tri_unpack('3i') for i in range(self.T)]
-        self.quads = [tri_unpack('4i') for i in range(self.Q)]
+        self.nVert, self.nTri, self.nQuad = tri_read('3i') # N of vertices (V), triangles (T) & quads (Q)
+        self.nLVert, self.nLSurf = tri_read('2i') # N of labelled vertices (LV) & surface points (LS)
+        self.nUV, = tri_read('i') # N of texture coordinates (X)
+        self.extInfo, = tri_read('i') # Extension info
+        self.nLDiffMorph, self.nLStatMorph = tri_read('2i') # N of labelled difference (Md) & stat morphs (Ms)
+        self.nSMVert, = tri_read('i') # total N of stat morph vertices (K)
+        tri_read('16s') # Reserved
+
+        self.meshVertices = [tri_read('3f') for i in range(self.nVert + self.nSMVert)]
+        self.meshTriangles = [tri_read('3i') for i in range(self.nTri)]
+        self.meshQuads = [tri_read('4i') for i in range(self.nQuad)]
+
+        # UV Layout
+        if self.nUV == 0 and self.extInfo & 0x01:
+            self.uvVertices = [tri_read('2f') for i in range(self.nVert)]
+            self.uvTriangles = self.meshTriangles
+            self.uvQuads = self.meshQuads
+
+        elif self.nUV > 0 and self.extInfo & 0x01:
+            self.uvVertices = [tri_read('2f') for i in range(self.nUV)]
+            self.uvTriangles = [tri_read('3i') for i in range(self.nTri)]
+            self.uvQuads = [tri_read('4i') for i in range(self.nQuad)]
 
         # ETC
 
 
 class FaceGenFG:
-    magic = "FRFG0001"
+    magic = b"FRFG0001"
     def __init__(self, filename = None):
         if filename is None:
             self.geoBasisVersion = 2001060901
@@ -168,6 +251,7 @@ class FaceGenFG:
             self.saData = [0]*self.GA
             self.tsData = [0]*self.TS
             self.taData = [0]*self.TA
+            self.detailImage = b''
         else:
             self.load(filename)
 
@@ -176,31 +260,43 @@ class FaceGenFG:
         b = f.read()
         f.close()
 
-        fg_read = Decoder(b)
-        assert(fg_read('8s')[0].decode() == FaceGenFG.magic)
+        if b[:8] != FaceGenFG.magic:
+            raise AssertionError("Wrong magic number.")
+
+        fg_read = _Decoder(b, 8)
 
         self.geoBasisVersion, self.texBasisVersion = fg_read('2L') # Geometry & Texture Basis Versions
         self.GS, self.GA, self.TS, self.TA  = fg_read('4L') # N of GS, GA, TS & TA modes
 
-        assert(fg_read('L') == 0) # Must be 0
-        self.detailTextureFlag, = fg_read('L')
+        if fg_read('L') != 0:
+            raise ValueError("Must be 0")
+
+        self.detailTextureFlag, = fg_read('L') # 0 if none, 1 if present
 
         self.gsData = list(fg_read(f'{self.GS}h')) # GS coeff x 1000
         self.gaData = list(fg_read(f'{self.GA}h')) # GA coeff x 1000
         self.tsData = list(fg_read(f'{self.TS}h')) # TS coeff x 1000
         self.taData = list(fg_read(f'{self.TA}h')) # TA coeff x 1000
-        # ETC
+
+        if self.detailTextureFlag:
+            nbytes = fg_read('L')
+            self.detailImage, = fg_read(f'{nbytes}s')
+        else:
+            self.detailImage = b''
 
     def save (self, filename):
         with open(filename,'wb') as f:
             f.write(self.magic)
             s = struct.pack('<8L', self.geoBasisVersion, self.texBasisVersion, self.GS, self.GA, self.TS, self.TA, 0, self.detailTextureFlag)
             f.write(s)
-            s = struct.pack(f'<{self.GS}h', *(self.gsCoef))
+            s = struct.pack(f'<{self.GS}h', *(self.gsData))
             f.write(s)
-            s = struct.pack(f'<{self.GA}h', *(self.gaCoef))
+            s = struct.pack(f'<{self.GA}h', *(self.gaData))
             f.write(s)
-            s = struct.pack(f'<{self.TS}h', *(self.tsCoef))
+            s = struct.pack(f'<{self.TS}h', *(self.tsData))
             f.write(s)
-            s = struct.pack(f'<{self.TA}h', *(self.taCoef))
+            s = struct.pack(f'<{self.TA}h', *(self.taData))
             f.write(s)
+            s = struct.pack('<L', len(self.detailImage))
+            f.write(s)
+            f.write(self.detailImage)
