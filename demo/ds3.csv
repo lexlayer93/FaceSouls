@@ -1,0 +1,94 @@
+Age, Features, Apparent Age, 15, 60, 0, 255;
+Gnd, Features, Facial Aesthetic, -4, 4, 0, 255;
+Car, Features, Form Emphasis, 0, 2, 0, 255;
+LGS19, Facial Balance, Nose Size, 10, -10, 0, 255;
+LGS20, Facial Balance, Nose/Forehead Ratio, -10, 10, 0, 255;
+LGS22, Facial Balance, Face Protrusion, 10, -10, 0, 255;
+LGS23, Facial Balance, Vert. Facial Spacing, 10, -10, 0, 255;
+LGS24, Facial Balance, Facial Feature Slant, 10, -10, 0, 255;
+LGS25, Facial Balance, Horiz. Facial Spacing, 10, -10, 0, 255;
+LGS27, Forehead/Glabella, Forehead Depth, -5, 5, 0, 255;
+LGS28, Forehead/Glabella, Forehead Protrusion, 5, -5, 0, 255;
+LGS54, Forehead/Glabella, Nose Bridge Height, -10, 10, 0, 255;
+LGS55, Forehead/Glabella, Bridge Protrusion 1, -10, 10, 0, 255;
+LGS56, Forehead/Glabella, Bridge Protrusion 2, -10, 10, 0, 255;
+LGS57, Forehead/Glabella, Nose Bridge Width, -10, 10, 0, 255;
+LGS00, Brow Ridge, Brow Ridge Height, 10, -10, 0, 255;
+LGS01, Brow Ridge, Inner Brow Ridge, -10, 10, 0, 255;
+LGS02, Brow Ridge, Outer Brow Ridge, 10, -10, 0, 255;
+LGS15, Eyes, Eye Position, -10, 10, 0, 255;
+LGS16, Eyes, Eye Size, -10, 10, 0, 255;
+LGS17, Eyes, Eye Slant, -10, 10, 0, 255;
+LGS18, Eyes, Eye Spacing, 10, -10, 0, 255;
+LGS46, Nose Ridge, Nose Ridge Depth, -10, 10, 0, 255;
+LGS47, Nose Ridge, Nose Ridge Length, -10, 10, 0, 255;
+LGS48, Nose Ridge, Nose Position, -10, 10, 0, 255;
+LGS49, Nose Ridge, Nose Tip Height, 10, -10, 0, 255;
+LGS53, Nose Ridge, Nose Protrusion, -10, 10, 0, 255;
+LGS58, Nose Ridge, Nose Height, -10, 10, 0, 255;
+LGS59, Nose Ridge, Nose Slant, -10, 10, 0, 255;
+LGS50, Nostrils, Nostril Slant, -10, 10, 0, 255;
+LGS51, Nostrils, Nostril Size, -10, 10, 0, 255;
+LGS52, Nostrils, Nostril Width, 10, -10, 0, 255;
+LGS03, Cheeks, Cheekbone Height, -10, 10, 0, 255;
+LGS04, Cheeks, Cheekbone Depth, -10, 10, 0, 255;
+LGS05, Cheeks, Cheekbone Width, -10, 10, 0, 255;
+LGS06, Cheeks, Cheekbone Protrusion, -10, 10, 0, 255;
+LGS07, Cheeks, Cheek Thickness, 10, -10, 0, 255;
+LGS34, Lips, Lip Shape, 10, -10, 0, 255;
+LGS35, Lips, Mouth Expression, 10, -10, 0, 255;
+LGS36, Lips, Lip Fullness, -10, 10, 0, 255;
+LGS37, Lips, Lip Size, 10, -10, 0, 255;
+LGS38, Lips, Lip Protrusion, 10, -10, 0, 255;
+LGS39, Lips, Lip Thickness, -10, 10, 0, 255;
+LGS40, Mouth, Mouth Protrusion, 10, -10, 0, 255;
+LGS41, Mouth, Mouth Slant, 10, -10, 0, 255;
+LGS42, Mouth, Occlusion, -10, 10, 0, 255;
+LGS43, Mouth, Mouth Position, 10, -10, 0, 255;
+LGS44, Mouth, Mouth Width, 10, -10, 0, 255;
+LGS45, Mouth, Mouth-Chin Distance, -10, 10, 0, 255;
+LGS08, Chin, Chin Tip Position, -10, 10, 0, 255;
+LGS09, Chin, Chin Length, 10, -10, 0, 255;
+LGS10, Chin, Chin Protrusion, -10, 10, 0, 255;
+LGS11, Chin, Chin Depth, -10, 10, 0, 255;
+LGS12, Chin, Chin Size, -10, 10, 0, 255;
+LGS13, Chin, Chin Height, -10, 10, 0, 255;
+LGS14, Chin, Chin Width, 10, -10, 0, 255;
+LGS30, Jaw, Jaw Protrusion, -10, 10, 0, 255;
+LGS31, Jaw, Jaw Width, 5, -5, 0, 255;
+LGS32, Jaw, Lower Jaw, 5, -5, 0, 255;
+LGS33, Jaw, Jaw Contour, -10, 10, 0, 255;
+LTS31, Skin Color, Skin Color Layer 4, 10, -10, 0, 255;
+LTS32, Skin Color, Skin Tone, -0.5, 0.5, 0, 255;
+LTS33, Skin Color, Skin Color Layer 1, -2, 2, 0, 255;
+LTS34, Skin Color, Skin Color Layer 2, -5, 5, 0, 255;
+LTS35, Skin Color, Skin Color Layer 3, -2, 2, 0, 255;
+LTS30, Skin Color, Nose Bridge Color, -10, 10, 0, 255;
+LTS06, Skin Color, Cheek Color, -10, 10, 0, 255;
+LTS07, Cosmetics, Tone around eyes, -10, 10, 0, 255;
+LTS08, Cosmetics, Eye Socket, -10, 10, 0, 255;
+LTS18, Cosmetics, Eyelid Brightness, 10, -10, 0, 255;
+LTS19, Cosmetics, Eyelid Color, -10, 10, 0, 255;
+LTS20, Cosmetics, Eyeliner, 10, -10, 0, 255;
+LTS21, Cosmetics, Eye Shadow, 10, -10, 0, 255;
+LTS29, Nostrils, Nasal Size, -10, 10, 0, 255;
+LTS28, Skin Color, Laugh Lines, 10, -10, 0, 255;
+LTS26, Cosmetics, Lipstick 1, 10, -10, 0, 255;
+LTS27, Cosmetics, Lipstick 2, -10, 10, 0, 255;
+#Seq, Age, Gnd, Car,
+LGS19, LGS20, LGS21, LGS22, LGS23, LGS24, LGS25,
+LGS26, LGS27, LGS28, LGS54, LGS55, LGS56, LGS57,
+LGS00, LGS01, LGS02,
+LGS15, LGS16, LGS17, LGS18,
+LGS46, LGS47, LGS48, LGS49, LGS53, LGS58, LGS59,
+LGS50, LGS51, LGS52,
+LGS03, LGS04, LGS05, LGS06, LGS07,
+LGS34, LGS35, LGS36, LGS37, LGS38, LGS39,
+LGS40, LGS41, LGS42, LGS43, LGS44, LGS45,
+LGS08, LGS09, LGS10, LGS11, LGS12, LGS13, LGS14,
+LGS30, LGS31, LGS32, LGS33,
+LTS31, LTS32, LTS33, LTS34, LTS35, LTS30, LTS06,
+LTS07, LTS08, LTS18, LTS19, LTS20, LTS21,
+LTS29, LTS28, LTS25, LTS26, LTS27;
+#GS, -7.14, 7.14;
+#TS, -17, 17;
