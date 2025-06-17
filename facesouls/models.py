@@ -4,17 +4,17 @@ from .files import *
 
 class FaceGenSSM:
     def __init__ (self, tri=None, egm=None, fg=None, endian="little"):
-        self.load_model(tri, egm, endian)
-        self.load_data(fg, endian)
+        self.load_shape_data(fg, endian)
+        self.load_shape_model(tri, egm, endian)
 
     @property
     def vertices (self):
         try:
             return self.vertices_default + np.dot(self.gs_deltas, self.gs_data) + np.dot(self.ga_deltas, self.ga_data)
-        except AttributeError:
+        except:
             return None
 
-    def load_model (self, tri, egm, endian="little"):
+    def load_shape_model (self, tri, egm, endian="little"):
         if isinstance(tri, str):
             tri = FaceGenTRI(tri, endian)
             quads = np.array(tri.mesh_quads, dtype=np.int32)
@@ -35,55 +35,64 @@ class FaceGenSSM:
 
         return tri, egm
 
-    def load_data (self, fg, endian="little"):
+    def load_shape_data (self, fg, endian="little"):
         if isinstance(fg, str):
             fg = FaceGenFG(fg, endian)
-        if isinstance(fg, FaceGenFG):
-            self.gs_data = np.array(fg.gs_data, dtype=np.float32)/1000
-            self.ga_data = np.array(fg.ga_data, dtype=np.float32)/1000
-        elif fg is None:
-            self.gs_data = np.zeros(self.GS, dtype=np.float32)
-            self.ga_data = np.zeros(self.GA, dtype=np.float32)
+        else:
+            fg = FaceGenFG()
+        self.GS = np.uint32(fg.GS)
+        self.GA = np.uint32(fg.GA)
+        self.gs_data = np.array(fg.gs_data, dtype=np.float32)/1000
+        self.ga_data = np.array(fg.ga_data, dtype=np.float32)/1000
         return fg
 
 
 class FaceGenSTM:
     def __init__ (self, bmp=None, egt=None, fg=None, endian="little"):
-        self.load_model(bmp, egt, endian)
-        self.load_data(fg, endian)
+        self.load_texture_data(fg, endian)
+        self.load_texture_model(bmp, egt, endian)
 
-    def load_model (self, bmp, egt, endian="little"):
-        self.TS = 50
-        self.TA = 0
+    @property
+    def pixels (self):
+        try:
+            return self.pixels_default + np.dot(self.ts_deltas, self.ts_data) + np.dot(self.ta_deltas, self.ta_data)
+        except:
+            return None
 
-    def load_data (self, fg, endian="little"):
+    def load_texture_model (self, bmp, egt, endian="little"):
+        if isinstance(bmp, str):
+            img = Image.open(bmp)
+            self.pixels_default = np.asarray(img, dtype=np.float32)
+
+        if isinstance(egt, str):
+            egt = FaceGenEGT(egt, endian)
+            self.TS = np.uint32(egt.TS)
+            self.TA = np.uint32(egt.TA)
+            ts_deltas = [np.array(egt.ts_deltas[i])*egt.ts_scales[i] for i in range(egt.TS)]
+            ts_deltas = ts_deltas.transpose(1,2,0).astype(np.float32)
+            self.ts_deltas = ts_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TS)
+            ta_deltas = [np.array(egt.ta_deltas[i])*egt.ta_scales[i] for i in range(egt.TA)]
+            ta_deltas = ta_deltas.transpose(1,2,0).astype(np.float32)
+            self.ta_deltas = ta_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TA)
+
+        return bmp, egt
+
+    def load_texture_data (self, fg, endian="little"):
         if isinstance(fg, str):
             fg = FaceGenFG(fg, endian)
-        if isinstance(fg, FaceGenFG):
-            self.ts_data = np.array(fg.ts_data, dtype=np.float32)/1000
-            self.ta_data = np.array(fg.ta_data, dtype=np.float32)/1000
-        elif fg is None:
-            self.ts_data = np.zeros(self.TS, dtype=np.float32)
-            self.ta_data = np.zeros(self.TA, dtype=np.float32)
+        else:
+            fg = FaceGenFG()
+        self.TS = np.uint32(fg.TS)
+        self.TA = np.uint32(fg.TA)
+        self.ts_data = np.array(fg.ts_data, dtype=np.float32)/1000
+        self.ta_data = np.array(fg.ta_data, dtype=np.float32)/1000
         return fg
 
 
 class FaceGenSAM (FaceGenSSM, FaceGenSTM):
     def __init__ (self, tri=None, egm=None, bmp=None, egt=None, fg=None, endian="little"):
-        self.load_shape_model(tri, egm, endian)
-        self.load_texture_model(bmp, egt, endian)
-        self.load_data(fg, endian)
-
-    def load_shape_model (self,tri, egm, endian="little"):
-        return FaceGenSSM.load_model(self, tri, egm, endian)
-
-    def load_texture_model (self, bmp, egt, endian="little"):
-        return FaceGenSTM.load_model(self, bmp, egt, endian)
-
-    def load_data (self, fname, endian="little"):
-        fg = FaceGenSSM.load_data(self, fname, endian)
-        FaceGenSTM.load_data(self, fg)
-        return fg
+        FaceGenSSM.__init__(self, tri, egm, fg, endian)
+        FaceGenSTM.__init__(self, bmp, egt, fg, endian)
 
 
 class FaceGenerator:

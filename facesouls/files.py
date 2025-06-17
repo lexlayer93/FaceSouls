@@ -232,14 +232,6 @@ class FaceGenEGT (_FaceGenFile):
             for j in range(npixels):
                 self.ts_deltas[i][j] = (aux[j], aux[j+npixels], aux[j+npixels*2])
 
-        self.ts_scales = [None] * self.TS
-        self.ts_deltas = [ [None]*npixels for _ in range(self.TS) ]
-        for i in range(self.TS):
-            self.ts_scales[i] = parser.float_()
-            aux = parser.char_(3*npixels)
-            for j in range(npixels):
-                self.ts_deltas[i][j] = (aux[j], aux[j+npixels], aux[j+npixels*2])
-
         self.ta_scales = [None] * self.TA
         self.ta_deltas = [ [None]*npixels for _ in range(self.TA) ]
         for i in range(self.TA):
@@ -338,7 +330,7 @@ class FaceGenFG(_FaceGenFile):
         self.TA = 0
         self.detail_texture_flag = 0
         self.gs_data = [0]*self.GS
-        self.sa_data = [0]*self.GA
+        self.ga_data = [0]*self.GA
         self.ts_data = [0]*self.TS
         self.ta_data = [0]*self.TA
         self.detail_image = b''
