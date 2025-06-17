@@ -82,7 +82,6 @@ class CharacterCreator (FaceGenerator):
                     pass
 
     def load_data (self, fname, endian="little"):
-        sam = self.models[0]
         if self.all_at_once:
             if fname is not None:
                 with open(fname, 'r') as f:
@@ -93,15 +92,14 @@ class CharacterCreator (FaceGenerator):
                         fg_id, value = cells
                         slider = self.sliders[fg_id]
                         slider.value = slider.int2float(value)
-            self.apply_sequence(sam)
+            self.apply_sequence()
         else:
             sam.load_data(fname, endian)
-            self.update_sliders(sam)
-        self.sync_models(sam)
+            self.update_sliders()
+        self.sync_models()
 
     def set_slider (self, fg_id, value):
         slider = self.sliders[fg_id]
-
         if isinstance(value, float):
             slider.value = value
         elif isinstance(value, int):
@@ -112,66 +110,33 @@ class CharacterCreator (FaceGenerator):
             self.set_zero(sam)
             self.apply_sequence(sam)
         else:
-            self.set_control(fg_id, slider.value, sam)
-            self.clip_data(sam)
+            value = slider.value
+            self.set_control(fg_id, value, sam)
             self.update_sliders(sam)
         self.sync_models(sam)
 
-    def get_sequence_values (self, sequence=None):
-        if sequence is None: sequence = self.sequence
-        return [self.sliders[fg_id].value for fg_id in sequence]
+    def get_values (self, fg_ids):
+        return [self.sliders[fg_id].value for fg_id in fg_ids]
 
-    def apply_sequence (self, sam, sequence=None, values=None):
-        if sequence is None: sequence = self.sequence
-        if values is None: values = self.get_sequence_values(sequence)
-        for i,fg_id in enumerate(sequence):
-            value = values[i]
+    def apply_sequence (self, sam=None, fg_ids=None):
+        if sam is None: sam = self.models[0]
+        if fg_ids is None: fg_ids = self.sequence
+        for fg_id in fg_ids:
+            value = self.sliders[fg_id].value
             self.set_control(fg_id, value, sam)
-            self.clip_data(sam)
 
-    def clip_data (self, sam):
-        sam.gs_data.clip(*self.shape_sym_range, sam.gs_data)
-        sam.ts_data.clip(*self.texture_sym_range, sam.ts_data)
-        sam.ga_data.clip(*self.shape_asym_range, sam.ga_data)
-        sam.ta_data.clip(*self.texture_asym_range, sam.ta_data)
-
-    def update_sliders (self, src):
+    def update_sliders (self, src=None):
+        if src is None: src = self.models[0]
         for fg_id, slider in self.sliders.items():
             slider.value = self.get_control(fg_id, src)
 
-    def sync_models (self, src):
+    def sync_models (self, src=None):
+        if src is None: src = self.models[0]
         for sam in self.models:
             sam.gs_data = src.gs_data.copy()
             sam.ts_data = src.ts_data.copy()
             sam.ga_data = src.ga_data.copy()
             sam.ta_data = src.ta_data.copy()
-
-    def set_control (self, fg_id, value, sam):
-        if fg_id == "Age":
-            self.set_shape_age_neutral(value, sam)
-            self.set_texture_age_neutral(value, sam)
-        elif fg_id == "Gnd":
-            self.set_shape_gender_neutral(value, sam)
-            self.set_texture_gender_neutral(value, sam)
-        elif fg_id == "Car":
-            self.set_shape_caricature_neutral(value, sam)
-            self.set_texture_caricature_neutral(value, sam)
-        elif fg_id[:3] == "LGS":
-            idx = int(fg_id[3:])
-            self.set_shape_sym_control(idx, value, sam)
-        elif fg_id[:3] == "LTS":
-            idx = int(fg_id[3:])
-            self.set_texture_sym_control(idx, value, sam)
-        elif fg_id == "Asy":
-            self.set_shape_asymmetry(value, sam)
-            self.set_texture_asymmetry(value, sam)
-        elif fg_id[:3] == "LGA":
-            idx = int(fg_id[3:])
-            self.set_shape_asym_control(idx, value, sam)
-        elif fg_id[:3] == "LTA":
-            idx = int(fg_id[3:])
-            self.set_texture_asym_control(idx, value, sam)
-        return value
 
     def get_control (self, fg_id, sam):
         if fg_id == "Age":
@@ -194,6 +159,49 @@ class CharacterCreator (FaceGenerator):
         elif fg_id[:3] == "LTA":
             idx = int(fg_id[3:])
             value = self.get_texture_asym_control(idx, sam)
+        else:
+            return None
+        return value
+
+    def set_control (self, fg_id, value, sam):
+        if fg_id == "Age":
+            self.set_shape_age_neutral(value, sam)
+            self.set_texture_age_neutral(value, sam)
+            self.clip_shape_sym(*self.shape_sym_range, sam)
+            self.clip_texture_sym(*self.texture_sym_range, sam)
+        elif fg_id == "Gnd":
+            self.set_shape_gender_neutral(value, sam)
+            self.set_texture_gender_neutral(value, sam)
+            self.clip_shape_sym(*self.shape_sym_range, sam)
+            self.clip_texture_sym(*self.texture_sym_range, sam)
+        elif fg_id == "Car":
+            self.set_shape_caricature_neutral(value, sam)
+            self.set_texture_caricature_neutral(value, sam)
+            self.clip_shape_sym(*self.shape_sym_range, sam)
+            self.clip_texture_sym(*self.texture_sym_range, sam)
+        elif fg_id[:3] == "LGS":
+            idx = int(fg_id[3:])
+            self.set_shape_sym_control(idx, value, sam)
+            self.clip_shape_sym(*self.shape_sym_range, sam)
+        elif fg_id[:3] == "LTS":
+            idx = int(fg_id[3:])
+            self.set_texture_sym_control(idx, value, sam)
+            self.clip_texture_sym(*self.texture_sym_range, sam)
+        elif fg_id == "Asy":
+            self.set_shape_asymmetry(value, sam)
+            self.set_texture_asymmetry(value, sam)
+            self.clip_shape_asym(*self.shape_asym_range, sam)
+            self.clip_texture_asym(*self.texture_asym_range, sam)
+        elif fg_id[:3] == "LGA":
+            idx = int(fg_id[3:])
+            self.set_shape_asym_control(idx, value, sam)
+            self.clip_shape_asym(*self.shape_asym_range, sam)
+        elif fg_id[:3] == "LTA":
+            idx = int(fg_id[3:])
+            self.set_texture_asym_control(idx, value, sam)
+            self.clip_texture_asym(*self.texture_asym_range, sam)
+        else:
+            return None
         return value
 
     def reset_sliders (self):

@@ -256,11 +256,13 @@ def cc_target_shape (character_creator, shape_target, mode=0, sequence=None, **k
     # initial state before shape sliders
     sam = cc.models[0]
     if cc.all_at_once:
-        preseq = [fg_id for fg_id in sequence if fg_id in {"Age","Gnd","Car"}]
+        preset = {"Age", "Gnd", "Car"}
+        preseq = [fg_id for fg_id in sequence if fg_id in preset]
         cc.set_shape_zero(sam)
         cc.apply_sequence(sam, preseq)
     s0 = Nt.dot(sam.gs_data)
 
+    # faster apply sequence, without clip
     def apply_seq (p):
         return s0 + mfit.dot(p)
 
@@ -307,7 +309,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, sequence=None, **k
         np.any(p0 > ranges[:,1]) or
         upper_lim["fun"](p0) < 0 or
         lower_lim["fun"](p0) < 0):
-        p0 = np.array(cc.get_sequence_values(available), dtype=np.float32)
+        p0 = np.array(cc.get_values(available), dtype=np.float32)
 
     # optimization
     kwargs.setdefault("method","SLSQP")
@@ -319,9 +321,9 @@ def cc_target_shape (character_creator, shape_target, mode=0, sequence=None, **k
                                      **kwargs
                                      )
     # apply solution
-    for i,v in enumerate(result.x):
-        fg_id = available[i]
-        cc.sliders[fg_id].value = v
+    for fg_id, value in zip(available, result.x):
+        cc.sliders[fg_id].value = value
     cc.apply_sequence(sam, lgs_seq)
+    cc.sync_models()
 
     return result

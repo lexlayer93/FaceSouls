@@ -160,6 +160,10 @@ class FaceGenerator:
     def set_race (self, r):
         self.current_race = self.races[r]
 
+    def set_zero (self, sam):
+        self.set_shape_zero(sam)
+        self.set_texture_zero(sam)
+
     def set_shape_zero (self, ssm):
         ssm.gs_data.fill(0.0)
         ssm.ga_data.fill(0.0)
@@ -168,9 +172,17 @@ class FaceGenerator:
         stm.ts_data.fill(0.0)
         stm.ta_data.fill(0.0)
 
-    def set_zero (self, sam):
-        self.set_shape_zero(sam)
-        self.set_texture_zero(sam)
+    def clip_shape_sym (self, vmin, vmax, ssm):
+        ssm.gs_data.clip(vmin, vmax, ssm.gs_data)
+
+    def clip_shape_asym (self, vmin, vmax, ssm):
+        ssm.ga_data.clip(vmin, vmax, ssm.ga_data)
+
+    def clip_texture_sym (self, vmin, vmax, stm):
+        stm.gs_data.clip(vmin, vmax, stm.gs_data)
+
+    def clip_texture_asym (self, vmin, vmax, stm):
+        stm.ga_data.clip(vmin, vmax, stm.ga_data)
 
     def get_shape_sym_control (self, idx, ssm):
         return np.dot(self.lgs_coeffs[idx,:], ssm.gs_data)

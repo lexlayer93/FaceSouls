@@ -17,8 +17,7 @@ class CharacterCreatorTK (CharacterCreator, tk.Tk):
         self.title("Character Creator Demo")
 
         notebook = ttk.Notebook(self)
-        notebook.pack(side=tk.BOTTOM, expand = True, fill = tk.BOTH)
-
+        notebook.pack(side=tk.BOTTOM, fill = tk.BOTH, expand=True)
         for t in self.tabs:
             frame = tk.Frame(notebook)
             frame.pack(expand=True, fill=tk.BOTH)
@@ -35,7 +34,7 @@ class CharacterCreatorTK (CharacterCreator, tk.Tk):
 
         fig = plt.Figure()
         canvas = FigureCanvasTkAgg(fig, master=self)
-        canvas.get_tk_widget().pack(side=tk.TOP, expand = False, fill = tk.BOTH)
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=False)
         self._canvas = canvas
         ax = fig.add_axes([0, 0, 1, 1], projection='3d')
 
@@ -55,8 +54,8 @@ class CharacterCreatorTK (CharacterCreator, tk.Tk):
         self._polyc.set_verts(verts[triangles])
         self._canvas.draw()
 
-    def update_sliders (self):
-        super().update_sliders()
+    def update_sliders (self, src=None):
+        super().update_sliders(src)
         self._ignore = True
         for fg_id, int_var in self._tkvars.items():
             value = self.sliders[fg_id].int_value
@@ -65,7 +64,7 @@ class CharacterCreatorTK (CharacterCreator, tk.Tk):
 
 if __name__ == "__main__":
     import sys
-    from fs.models import FaceGenSAM
+    from facesouls.models import FaceGenSAM
     assert len(sys.argv) == 5
     ctl, csv, tri, egm = sys.argv[1:] # si.ctl, ds3.csv, FG_A_0100.tri, FG_A_0100.egm
     face = FaceGenSAM(tri, egm)
