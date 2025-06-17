@@ -268,16 +268,16 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
             q = np.dot(cc.lgs_coeffs, s)
             qt = np.dot(cc.lgs_coeffs, shape_target)
             return q-qt
-
         def gradient (p):
             return 2*residual(p).dot(cc.lgs_coeffs).dot(mfit)
+
     elif mode == 1: # minimize shape coords difference
         def residual (p):
             s = apply_seq(p)
             return s - shape_target
-
         def gradient (p):
             return 2*residual(p).dot(mfit)
+
     elif mode >= 2: # minimize vertex difference
         v0 = sam.vertices_default.flatten()
         deltas = sam.gs_deltas.reshape(-1, sam.gs_data.size)
@@ -286,7 +286,6 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
             v = v0 + np.dot(deltas, s)
             vt = v0 + np.dot(deltas, shape_target)
             return v-vt
-
         def gradient (p):
             return 2*residual(p).dot(deltas).dot(mfit)
 
@@ -296,7 +295,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     lower_lim = {"type": "ineq", "fun": lambda p: apply_seq(p).min() - smin}
 
     # sliders bounds
-    float_ranges = np.array([cc.sliders[fg_id].float_range for fg_id in available],
+    float_ranges = np.array([cc.sliders[fg_id].available_float_range for fg_id in available],
                             dtype=np.float32)
     float_ranges.sort(axis=1)
 
@@ -308,6 +307,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
         lower_lim["fun"](p0) < 0):
         p0 = np.array(cc.get_sequence_values(available), dtype=np.float32)
 
+    # optimization
     kwargs.setdefault("method","SLSQP")
     result = scipy.optimize.minimize(lambda p: np.sum(residual(p)**2),
                                      p0,
@@ -316,7 +316,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
                                      constraints=[lower_lim, upper_lim],
                                      **kwargs
                                      )
-
+    # apply solution
     for i,v in enumerate(result.x):
         fg_id = available[i]
         cc.sliders[fg_id].value = v

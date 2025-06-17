@@ -16,8 +16,9 @@ class CharacterSlider:
 
     @property
     def available_float_range (self):
-        int_min, int_max = int_range
-        return self.int2float(int_min), self.int2float(int_max)
+        int_min, int_max = self.int_range
+        af_range = self.int2float(int_min), self.int2float(int_max)
+        return min(af_range), max(af_range)
 
     def int2float (self, x):
         float_min, float_max = self.float_range
