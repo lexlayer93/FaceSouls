@@ -234,17 +234,18 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
     return (fit, transformation, weighted_error)
 
 
-def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
+def cc_target_shape (character_creator, shape_target, mode=0, sequence=None, **kwargs):
     cc = character_creator
-    sequence = [fg_id for fg_id in cc.sequence if fg_id[:3]=="LGS"]
-    available = [fg_id for fg_id in sequence if not cc.sliders[fg_id].debug_only]
+    if sequence is None: sequence = cc.sequence
+    lgs_seq = [fg_id for fg_id in sequence if fg_id[:3]=="LGS"]
+    available = [fg_id for fg_id in lgs_seq if not cc.sliders[fg_id].debug_only]
     indices = [int(fg_id[3:]) for fg_id in available]
 
     # cumulative effect of shape sliders
     mtx = np.zeros_like(cc.lgs_coeffs.T)
     I = np.eye(character_creator.GS)
     Nt = np.copy(I)
-    for fg_id in sequence[::-1]:
+    for fg_id in lgs_seq[::-1]:
         i = int(fg_id[3:])
         c = cc.lgs_coeffs[i,:].reshape(-1,1)
         N = I - np.dot(c,c.T)
@@ -255,7 +256,8 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     # initial state before shape sliders
     sam = cc.models[0]
     if cc.all_at_once:
-        preseq = [fg_id for fg_id in cc.sequence if fg_id in {"Age","Gnd","Car"}]
+        preseq = [fg_id for fg_id in sequence if fg_id in {"Age","Gnd","Car"}]
+        cc.set_shape_zero(sam)
         cc.apply_sequence(sam, preseq)
     s0 = Nt.dot(sam.gs_data)
 
@@ -295,14 +297,14 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     lower_lim = {"type": "ineq", "fun": lambda p: apply_seq(p).min() - smin}
 
     # sliders bounds
-    float_ranges = np.array([cc.sliders[fg_id].available_float_range for fg_id in available],
+    ranges = np.array([cc.sliders[fg_id].available_float_range for fg_id in available],
                             dtype=np.float32)
-    float_ranges.sort(axis=1)
+    ranges.sort(axis=1)
 
     # initial guess
     p0 = np.linalg.pinv(mfit).dot(shape_target-s0)
-    if (np.any(p0 < float_ranges[:,0]) or
-        np.any(p0 > float_ranges[:,1]) or
+    if (np.any(p0 < ranges[:,0]) or
+        np.any(p0 > ranges[:,1]) or
         upper_lim["fun"](p0) < 0 or
         lower_lim["fun"](p0) < 0):
         p0 = np.array(cc.get_sequence_values(available), dtype=np.float32)
@@ -312,7 +314,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     result = scipy.optimize.minimize(lambda p: np.sum(residual(p)**2),
                                      p0,
                                      jac=gradient,
-                                     bounds=np.sort(float_ranges, axis=1),
+                                     bounds=ranges,
                                      constraints=[lower_lim, upper_lim],
                                      **kwargs
                                      )
@@ -320,6 +322,6 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     for i,v in enumerate(result.x):
         fg_id = available[i]
         cc.sliders[fg_id].value = v
-    cc.apply_sequence(sam)
+    cc.apply_sequence(sam, lgs_seq)
 
     return result

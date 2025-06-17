@@ -109,7 +109,8 @@ class CharacterCreator (FaceGenerator):
 
         sam = self.models[0]
         if self.all_at_once:
-            self.set_sequence(sam)
+            self.set_zero(sam)
+            self.apply_sequence(sam)
         else:
             self.set_control(fg_id, slider.value, sam)
             self.clip_data(sam)
@@ -123,8 +124,6 @@ class CharacterCreator (FaceGenerator):
     def apply_sequence (self, sam, sequence=None, values=None):
         if sequence is None: sequence = self.sequence
         if values is None: values = self.get_sequence_values(sequence)
-        self.set_shape_zero(sam)
-        self.set_texture_zero(sam)
         for i,fg_id in enumerate(sequence):
             value = values[i]
             self.set_control(fg_id, value, sam)
