@@ -40,8 +40,8 @@ class CharacterCreator (FaceGenerator):
         self.texture_sym_range = no_limit
         self.shape_asym_range = no_limit
         self.texture_asym_range = no_limit
-        self.models = models or [self.test_model()]
         self.load_menu(menu)
+        if models is None: self.models = [self.test_model()]
         self.load_data(data, endian)
 
     def load_menu (self, fname=None):
