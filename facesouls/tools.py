@@ -234,7 +234,7 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
     return (fit, transformation, weighted_error)
 
 
-def cc_target_shape (character_creator, shape_target, **kwargs):
+def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     cc = character_creator
     sequence = [fg_id for fg_id in cc.sequence if fg_id[:3]=="LGS"]
     available = [fg_id for fg_id in sequence if not cc.sliders[fg_id].debug_only]
@@ -253,22 +253,42 @@ def cc_target_shape (character_creator, shape_target, **kwargs):
     mfit = mtx[:,indices]
 
     # initial state before shape sliders
+    sam = cc.models[0]
     if cc.all_at_once:
         preseq = [fg_id for fg_id in cc.sequence if fg_id in {"Age","Gnd","Car"}]
-        cc.set_sequence(preseq)
-    s0 = Nt.dot(cc.models[0].gs_data)
+        cc.apply_sequence(sam, preseq)
+    s0 = Nt.dot(sam.gs_data)
 
     def apply_seq (p):
         return s0 + mfit.dot(p)
 
-    def residual (p):
-        s = apply_seq(p)
-        q = np.dot(cc.lgs_coeffs, s)
-        qt = np.dot(cc.lgs_coeffs, shape_target)
-        return q-qt
+    if mode <= 0: # minimize controls difference
+        def residual (p):
+            s = apply_seq(p)
+            q = np.dot(cc.lgs_coeffs, s)
+            qt = np.dot(cc.lgs_coeffs, shape_target)
+            return q-qt
 
-    def gradient (p):
-        return 2*residual(p).dot(cc.lgs_coeffs).dot(mfit)
+        def gradient (p):
+            return 2*residual(p).dot(cc.lgs_coeffs).dot(mfit)
+    elif mode == 1: # minimize shape coords difference
+        def residual (p):
+            s = apply_seq(p)
+            return s - shape_target
+
+        def gradient (p):
+            return 2*residual(p).dot(mfit)
+    elif mode >= 2: # minimize vertex difference
+        v0 = sam.vertices_default.flatten()
+        deltas = sam.gs_deltas.reshape(-1, sam.gs_data.size)
+        def residual (p):
+            s = apply_seq(p)
+            v = v0 + np.dot(deltas, s)
+            vt = v0 + np.dot(deltas, shape_target)
+            return v-vt
+
+        def gradient (p):
+            return 2*residual(p).dot(deltas).dot(mfit)
 
     # avoid shape data saturation
     smin, smax = cc.shape_sym_range
@@ -286,7 +306,7 @@ def cc_target_shape (character_creator, shape_target, **kwargs):
         np.any(p0 > float_ranges[:,1]) or
         upper_lim["fun"](p0) < 0 or
         lower_lim["fun"](p0) < 0):
-        p0 = np.array(cc.get_sequence(available), dtype=np.float32)
+        p0 = np.array(cc.get_sequence_values(available), dtype=np.float32)
 
     kwargs.setdefault("method","SLSQP")
     result = scipy.optimize.minimize(lambda p: np.sum(residual(p)**2),
@@ -300,6 +320,6 @@ def cc_target_shape (character_creator, shape_target, **kwargs):
     for i,v in enumerate(result.x):
         fg_id = available[i]
         cc.sliders[fg_id].value = v
-    cc.set_sequence()
+    cc.apply_sequence(sam)
 
     return result

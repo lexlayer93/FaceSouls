@@ -14,6 +14,11 @@ class CharacterSlider:
     def int_value (self):
         return self.float2int(self.value)
 
+    @property
+    def available_float_range (self):
+        int_min, int_max = int_range
+        return self.int2float(int_min), self.int2float(int_max)
+
     def int2float (self, x):
         float_min, float_max = self.float_range
         return float_min + x*(float_max - float_min)/255
@@ -76,35 +81,22 @@ class CharacterCreator (FaceGenerator):
                     pass
 
     def load_data (self, fname, endian="little"):
-        if fname is None or isinstance(fname,str) and fname.split('.')[-1] == "fg":
-            self.all_at_once = False
-            self.models[0].load_data(fname, endian)
-            self.sync_models()
-            self.update_sliders()
+        sam = self.models[0]
+        if self.all_at_once:
+            if fname is not None:
+                with open(fname, 'r') as f:
+                    rows = f.read.split(';')
+                    del rows[-1]
+                    for r in rows:
+                        cells = list(map(lambda s: s.strip(), r.split(',')))
+                        fg_id, value = cells
+                        slider = self.sliders[fg_id]
+                        slider.value = slider.int2float(value)
+            self.apply_sequence(sam)
         else:
-            self.all_at_once = True
-            with open(fname, 'r') as f:
-                rows = f.read.split(';')
-                del rows[-1]
-                for r in rows:
-                    cells = list(map(lambda s: s.strip(), r.split(',')))
-                    fg_id, value = cells
-                    slider = self.sliders[fg_id]
-                    slider.value = slider.int2float(value)
-            self.sync_models()
-
-
-    def load_param (self, fname):
-        with open(fname, 'r') as f:
-            rows = f.read.split(';')
-            del rows[-1]
-            for r in rows:
-                cells = list(map(lambda s: s.strip(), r.split(',')))
-                fg_id, value = cells
-                slider = self.sliders[fg_id]
-                slider.value = slider.int2float(value)
-        self.apply_sequence()
-        self.all_at_once = True
+            sam.load_data(fname, endian)
+            self.update_sliders(sam)
+        self.sync_models(sam)
 
     def set_slider (self, fg_id, value):
         slider = self.sliders[fg_id]
@@ -114,53 +106,45 @@ class CharacterCreator (FaceGenerator):
         elif isinstance(value, int):
             slider.value = slider.int2float(value)
 
+        sam = self.models[0]
         if self.all_at_once:
-            self.set_sequence()
+            self.set_sequence(sam)
         else:
-            for sam in self.models:
-                self.set_control(fg_id, slider.value, sam)
-            self.clip_data()
-            self.update_sliders()
+            self.set_control(fg_id, slider.value, sam)
+            self.clip_data(sam)
+            self.update_sliders(sam)
+        self.sync_models(sam)
 
-    def get_sequence (self, sequence=None):
+    def get_sequence_values (self, sequence=None):
         if sequence is None: sequence = self.sequence
         return [self.sliders[fg_id].value for fg_id in sequence]
 
-    def set_sequence (self, sequence=None, values=None, models=None):
+    def apply_sequence (self, sam, sequence=None, values=None):
         if sequence is None: sequence = self.sequence
-        if values is None: values = self.get_sequence(sequence)
-        if models is None: models = self.models
-        if not isinstance(models, list): models = [models]
-        for sam in models:
-            self.set_shape_zero(sam)
-            self.set_texture_zero(sam)
-            for i,fg_id in enumerate(sequence):
-                value = values[i]
-                self.set_control(fg_id, value, sam)
-                self.clip_data()
+        if values is None: values = self.get_sequence_values(sequence)
+        self.set_shape_zero(sam)
+        self.set_texture_zero(sam)
+        for i,fg_id in enumerate(sequence):
+            value = values[i]
+            self.set_control(fg_id, value, sam)
+            self.clip_data(sam)
 
-    def update_sliders (self, model=None):
-        sam = model or self.models[0]
+    def clip_data (self, sam):
+        sam.gs_data.clip(*self.shape_sym_range, sam.gs_data)
+        sam.ts_data.clip(*self.texture_sym_range, sam.ts_data)
+        sam.ga_data.clip(*self.shape_asym_range, sam.ga_data)
+        sam.ta_data.clip(*self.texture_asym_range, sam.ta_data)
+
+    def update_sliders (self, src):
         for fg_id, slider in self.sliders.items():
-            slider.value = self.get_control(fg_id, sam)
+            slider.value = self.get_control(fg_id, src)
 
-    def sync_models (self, model=None):
-        sam0 = model or self.models[0]
-        if self.all_at_once:
-            self.set_sequence()
-        elif len(self.models) > 1:
-            for sam in self.models[1:]:
-                sam.gs_data = sam0.gs_data.copy()
-                sam.ts_data = sam0.ts_data.copy()
-                sam.ga_data = sam0.ga_data.copy()
-                sam.ta_data = sam0.ta_data.copy()
-
-    def clip_data (self):
+    def sync_models (self, src):
         for sam in self.models:
-            sam.gs_data.clip(*self.shape_sym_range, sam.gs_data)
-            sam.ts_data.clip(*self.texture_sym_range, sam.ts_data)
-            sam.ga_data.clip(*self.shape_asym_range, sam.ga_data)
-            sam.ta_data.clip(*self.texture_asym_range, sam.ta_data)
+            sam.gs_data = src.gs_data.copy()
+            sam.ts_data = src.ts_data.copy()
+            sam.ga_data = src.ga_data.copy()
+            sam.ta_data = src.ta_data.copy()
 
     def set_control (self, fg_id, value, sam):
         if fg_id == "Age":
