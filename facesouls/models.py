@@ -181,18 +181,6 @@ class FaceGenerator:
         stm.ts_data.fill(0.0)
         stm.ta_data.fill(0.0)
 
-    def clip_shape_sym (self, vmin, vmax, ssm):
-        ssm.gs_data.clip(vmin, vmax, ssm.gs_data)
-
-    def clip_shape_asym (self, vmin, vmax, ssm):
-        ssm.ga_data.clip(vmin, vmax, ssm.ga_data)
-
-    def clip_texture_sym (self, vmin, vmax, stm):
-        stm.gs_data.clip(vmin, vmax, stm.gs_data)
-
-    def clip_texture_asym (self, vmin, vmax, stm):
-        stm.ga_data.clip(vmin, vmax, stm.ga_data)
-
     def get_shape_sym_control (self, idx, ssm):
         return np.dot(self.lgs_coeffs[idx,:], ssm.gs_data)
 
@@ -220,6 +208,17 @@ class FaceGenerator:
     def set_texture_asym_control (self, idx, value, stm):
         value0 = self.get_texture_asym_control(idx, stm)
         stm.ta_data += (value - value0) * self.lta_coeffs[idx,:]
+
+    def get_age (self, sam):
+        return self.get_shape_age(sam)
+
+    def set_age (self, value, sam):
+        self.set_shape_age(value, sam)
+        self.set_texture_age(value, sam)
+
+    def set_age_neutral (self, value, sam):
+        self.set_shape_age_neutral(value, sam)
+        self.set_texture_age_neutral(value, sam)
 
     def get_shape_age (self, ssm):
         control = self.current_race.age_control
@@ -257,6 +256,17 @@ class FaceGenerator:
         af, gf = np.dot(self.current_race._ag_texture_covinv, (value-value0, 0))
         stm.ts_data += af*ac + gf*gc
 
+    def get_gender (self, sam):
+        return self.get_shape_gender(sam)
+
+    def set_gender (self, value, sam):
+        self.set_shape_gender(value, sam)
+        self.set_texture_gender(value, sam)
+
+    def set_gender_neutral (self, value, sam):
+        self.set_shape_gender_neutral(value, sam)
+        self.set_texture_gender_neutral(value, sam)
+
     def get_shape_gender (self, ssm):
         control = self.current_race.gnd_control
         return np.dot(control.gs_coeff, ssm.gs_data) + control.gs_offset
@@ -292,6 +302,20 @@ class FaceGenerator:
         value0 = self.get_texture_gender(stm)
         af, gf = np.dot(self.current_race._ag_shape_covinv, (0, value-value0))
         stm.ts_data += af*ac + gf*gc
+
+    def get_caricature (self, sam):
+        return self.get_shape_caricature(sam)
+
+    def get_caricature_neutral (self, sam):
+        return self.get_shape_caricature_neutral(sam)
+
+    def set_caricature (self, value, sam):
+        self.set_shape_caricature(value, sam)
+        self.set_texture_caricature(value, sam)
+
+    def set_caricature_neutral (self, value, sam):
+        self.set_shape_caricature_neutral(value, sam)
+        self.set_texture_caricature_neutral(value, sam)
 
     def get_shape_caricature (self, ssm):
         race = self.current_race
@@ -353,6 +377,13 @@ class FaceGenerator:
             ag_dev = race._ag_texture_proj.dot(dev)
             stm.ts_data = race.ts_mean + value/value0*(dev - ag_dev) + ag_dev
 
+    def get_asymmetry (self, sam):
+        return self.get_shape_asymmetry(sam)
+
+    def set_asymmetry (self, value, sam):
+        self.set_shape_asymmetry(value, sam)
+        self.set_texture_asymmetry(value, sam)
+
     def get_shape_asymmetry (self, ssm):
         return np.linalg.norm(ssm.ga_data)/np.sqrt(ssm.GA, dtype=np.float32)
 
@@ -369,13 +400,17 @@ class FaceGenerator:
         if value0 > 0:
             ssm.ta_data *= value/value0
 
-    def get_race_morph(self, race, sam):
+    def get_race_morph (self, race, sam):
+        if race not in self.current_race.morph:
+            return None
         control = self.current_race.morph[race]
         shape_term = np.dot(control.gs_coeff, sam.gs_data)
         texture_term = np.dot(control.ts_coeff, sam.ts_data)
         return shape_term + texture_term + control.offset
 
-    def set_race_morph(self, race, value, sam):
+    def set_race_morph (self, race, value, sam):
+        if race not in self.current_race.morph:
+            return None
         control = self.current_race.morph[race]
         value0 = self.get_race_morph(race, sam)
         sc2 = np.dot(control.gs_coeff, control.gs_coeff)

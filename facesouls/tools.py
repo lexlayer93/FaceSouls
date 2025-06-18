@@ -1,5 +1,5 @@
 import numpy as np
-import scipy
+from scipy import optimize
 import dlib
 from trimesh.base import Trimesh
 from trimesh.proximity import closest_point
@@ -234,32 +234,33 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
     return (fit, transformation, weighted_error)
 
 
-def cc_target_shape (character_creator, shape_target, mode=0, sequence=None, **kwargs):
+def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     cc = character_creator
-    if sequence is None: sequence = cc.sequence
-    lgs_seq = [fg_id for fg_id in sequence if fg_id[:3]=="LGS"]
-    available = [fg_id for fg_id in lgs_seq if not cc.sliders[fg_id].debug_only]
-    indices = [int(fg_id[3:]) for fg_id in available]
+    sequence = cc.sequence
+    lgs_seq = [key for key in sequence if key//100 == 1]
+    available = [key for key in lgs_seq if not cc.sliders[key].debug_only]
+    indices = [key % 100 for key in available]
 
     # cumulative effect of shape sliders
     mtx = np.zeros_like(cc.lgs_coeffs.T)
     I = np.eye(character_creator.GS)
     Nt = np.copy(I)
-    for fg_id in lgs_seq[::-1]:
-        i = int(fg_id[3:])
-        c = cc.lgs_coeffs[i,:].reshape(-1,1)
+    for key in lgs_seq[::-1]:
+        idx = key % 100
+        c = cc.lgs_coeffs[idx,:].reshape(-1,1)
         N = I - np.dot(c,c.T)
-        mtx[:,i] = Nt.dot(c).reshape(-1)
+        mtx[:,idx] = Nt.dot(c).reshape(-1)
         Nt = Nt.dot(N)
     mfit = mtx[:,indices]
 
     # initial state before shape sliders
     sam = cc.models[0]
     if cc.all_at_once:
-        preset = {"Age", "Gnd", "Car"}
-        preseq = [fg_id for fg_id in sequence if fg_id in preset]
+        preseq = [key for key in sequence if key//100 == 0]
         cc.set_shape_zero(sam)
-        cc.apply_sequence(sam, preseq)
+        for key in preseq:
+            value = cc.values[key]
+            cc.set_control(key, value, sam)
     s0 = Nt.dot(sam.gs_data)
 
     # faster apply sequence, without clip
@@ -299,7 +300,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, sequence=None, **k
     lower_lim = {"type": "ineq", "fun": lambda p: apply_seq(p).min() - smin}
 
     # sliders bounds
-    ranges = np.array([cc.sliders[fg_id].available_float_range for fg_id in available],
+    ranges = np.array([cc.sliders[fg_id].available_range for fg_id in available],
                             dtype=np.float32)
     ranges.sort(axis=1)
 
@@ -309,21 +310,20 @@ def cc_target_shape (character_creator, shape_target, mode=0, sequence=None, **k
         np.any(p0 > ranges[:,1]) or
         upper_lim["fun"](p0) < 0 or
         lower_lim["fun"](p0) < 0):
-        p0 = np.array(cc.get_values(available), dtype=np.float32)
+        p0 = np.array([cc.values[k] for k in available], dtype=np.float32)
 
     # optimization
     kwargs.setdefault("method","SLSQP")
-    result = scipy.optimize.minimize(lambda p: np.sum(residual(p)**2),
-                                     p0,
-                                     jac=gradient,
-                                     bounds=ranges,
-                                     constraints=[lower_lim, upper_lim],
-                                     **kwargs
-                                     )
+    result = optimize.minimize(lambda p: np.sum(residual(p)**2),
+                               p0,
+                               jac=gradient,
+                               bounds=ranges,
+                               constraints=[lower_lim, upper_lim],
+                               **kwargs)
+
     # apply solution
-    for fg_id, value in zip(available, result.x):
-        cc.sliders[fg_id].value = value
-    cc.apply_sequence(sam, lgs_seq)
-    cc.sync_models()
+    for key, value in zip(available, result.x):
+        cc.values[key] = value
+    cc.apply_sequence(sam)
 
     return result

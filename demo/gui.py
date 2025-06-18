@@ -22,15 +22,15 @@ class CharacterCreatorTK (CharacterCreator, tk.Tk):
             frame = tk.Frame(notebook)
             frame.pack(expand=True, fill=tk.BOTH)
             notebook.add(frame, text=t)
-            for fg_id in self.tabs[t]:
-                slider = self.sliders[fg_id]
-                var = tk.IntVar(value=slider.int_value, name=fg_id)
+            for key in self.tabs[t]:
+                slider = self.sliders[key]
+                var = tk.IntVar(value=slider.int_value, name=str(key))
                 scale = tk.Scale(frame, orient=tk.HORIZONTAL, label=slider.label,
                                  from_=slider.int_range[0], to=slider.int_range[1],
                                  variable=var)
                 scale.pack(expand=False, fill='x')
-                var.trace_add("write", lambda fg_id,*args, self=self: self.set_slider(fg_id))
-                self._tkvars[fg_id] = var
+                var.trace_add("write", lambda key,*args, cc=self: cc.set_slider(key))
+                self._tkvars[key] = var
 
         fig = plt.Figure()
         canvas = FigureCanvasTkAgg(fig, master=self)
@@ -43,22 +43,22 @@ class CharacterCreatorTK (CharacterCreator, tk.Tk):
         self._polyc = facemesh_plot((verts, triangles), ax)
         self._ignore = False
 
-    def set_slider (self, fg_id, value=None):
+    def set_slider (self, key, value=None):
         if self._ignore:
             return
-        int_var = self._tkvars[fg_id]
-        value = value or int_var.get()
-        super().set_slider(fg_id, value)
+        key = int(key)
+        value = value or self._tkvars[key].get()
+        super().set_slider(key, value)
         verts = self.models[0].vertices
         triangles = self.models[0].triangles
         self._polyc.set_verts(verts[triangles])
         self._canvas.draw()
 
-    def update_sliders (self, src=None):
-        super().update_sliders(src)
+    def update_values (self, src=None):
+        super().update_values(src)
         self._ignore = True
-        for fg_id, int_var in self._tkvars.items():
-            value = self.sliders[fg_id].int_value
+        for key, int_var in self._tkvars.items():
+            value = self.sliders[key].int_value
             int_var.set(value)
         self._ignore = False
 
