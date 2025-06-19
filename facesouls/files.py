@@ -66,7 +66,7 @@ class _FaceGenFile:
         elif isinstance(src, bytes):
             self.from_buffer(src, endian)
         else:
-            self._default()
+            pass
 
     def load (self, fname, endian):
         with open(fname, 'rb') as f: b = f.read()
@@ -244,9 +244,6 @@ class FaceGenEGT (_FaceGenFile):
 class FaceGenFIM (_FaceGenFile):
     magic = b"FIMFF001"
 
-    def __init__ (self, filename):
-        self.load(filename)
-
     def _parse (self, parser):
         self.image_width, self.image_height = parser.ulong_(2)
 
@@ -262,7 +259,7 @@ class FaceGenTRI (_FaceGenFile):
     def _parse (self, parser):
 
         self.num_vertices, self.num_triangles, self.num_quads = parser.int_(3) # V, T & Q
-        self.num_labelled_vertices_number, self.num_labelled_surface_points = parser.int_(2) # LV & LS
+        self.num_labelled_vertices, self.num_labelled_surface_points = parser.int_(2) # LV & LS
         self.num_uv = parser.int_() # X
         self.extension_info = parser.int_()
         self.num_labelled_difference_morphs, self.num_labelled_stat_morphs = parser.int_(2) # Md & Ms
@@ -270,13 +267,13 @@ class FaceGenTRI (_FaceGenFile):
 
         parser.pad_(16) # Reserved
 
-        self.mesh_vertices = [parser.float_(3) for i in range(self.num_vertices + self.num_stat_morph_vertices)]
-        self.mesh_triangles = [parser.int_(3) for i in range(self.num_triangles)]
-        self.mesh_quads = [parser.int_(4) for i in range(self.num_quads)]
+        self.vertices = [parser.float_(3) for i in range(self.num_vertices + self.num_stat_morph_vertices)]
+        self.triangles = [parser.int_(3) for i in range(self.num_triangles)]
+        self.quads = [parser.int_(4) for i in range(self.num_quads)]
 
         # UV Layout
         if self.num_uv == 0 and self.extension_info & 0x01: # per vertex
-            self.uv_vertices = [parser.float_(2) for i in range(self.nVert)]
+            self.uv_vertices = [parser.float_(2) for i in range(self.num_vertices)]
             self.uv_triangles = self.meshTriangles
             self.uv_quads = self.meshQuads
         elif self.num_uv > 0 and self.extension_info & 0x01: # per facet
@@ -286,28 +283,39 @@ class FaceGenTRI (_FaceGenFile):
 
         # ETC
 
-    def export_to_obj (self, fname):
+    def export_as_obj (self, fname):
         with open(fname, 'w') as f:
-            for i,v in enumerate(self.mesh_vertices):
+            for v in self.vertices:
                 s = ' '.join(str(x) for x in v)
                 f.write('v ' + s + '\n')
-            for i,t in enumerate(self.mesh_triangles):
-                s = ' '.join(str(k+1) for k in t)
-                f.write('f ' + s + '\n')
-            for i,q in enumerate(self.mesh_quads):
-                s = ' '.join(str(k+1) for k in q)
-                f.write('f ' + s + '\n')
+            for vt in self.uv_vertices:
+                s = ' '.join(str(uv) for uv in vt)
+                f.write("vt " + s + '\n')
+            for t1, t2 in zip(self.triangles, self.uv_triangles):
+                s = ' '.join(f"{i+1}/{j+1}" for i,j in zip(t1, t2))
+                f.write("f " + s + '\n')
+            for q1, q2 in zip(self.quads, self.uv_quads):
+                s = " ".join(f"{i+1}/{j+1}" for i,j in zip(q1,q2))
+                f.write("f " + s + '\n')
 
 
 class FaceGenFG(_FaceGenFile):
     magic = b"FRFG0001"
 
-    def save (self, filename):
+    def save (self, filename, endian=None):
+        if endian == "little":
+            endian = '<'
+        elif endian == "big":
+            endian = '>'
+        else:
+            endian = '='
         with open(filename,'wb') as f:
             f.write(self.magic)
-            s = struct.pack('<8L', self.geo_basis_version, self.tex_basis_version,
-                            self.GS, self.GA, self.TS, self.TA,
-                            0, self.detail_texture_flag)
+            s = struct.pack(f'{endian}2L', self.geo_basis_version, self.tex_basis_version)
+            f.write(s)
+            s = struct.pack(f'{endian}4L', self.GS, self.GA, self.TS, self.TA)
+            f.write(s)
+            s = struct.pack(f'{endian}2L', 0, self.detail_texture_flag)
             f.write(s)
             s = struct.pack(f'<{self.GS}h', *(self.gs_data))
             f.write(s)
@@ -320,20 +328,6 @@ class FaceGenFG(_FaceGenFile):
             s = struct.pack('<L', len(self.detail_image))
             f.write(s)
             f.write(self.detail_image)
-
-    def _default(self):
-        self.geo_basis_version = 2001060901
-        self.tex_basis_version = 81
-        self.GS = 50
-        self.GA = 30
-        self.TS = 50
-        self.TA = 0
-        self.detail_texture_flag = 0
-        self.gs_data = [0]*self.GS
-        self.ga_data = [0]*self.GA
-        self.ts_data = [0]*self.TS
-        self.ta_data = [0]*self.TA
-        self.detail_image = b''
 
     def _parse (self, parser):
         self.geo_basis_version, self.tex_basis_version = parser.ulong_(2) # Geometry & Texture Basis Versions

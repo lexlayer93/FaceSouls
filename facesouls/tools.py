@@ -164,7 +164,7 @@ def facemesh_nearest_barycentric (mesh, points):
 
 
 def facemesh_from_model (ssm):
-    return Trimesh(ssm.vertices, ssm.triangles, process = False)
+    return Trimesh(ssm.vertices, ssm.triangles_only, process = False)
 
 
 def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="error", iterations=1, wz=0.0, wl=1.0):
