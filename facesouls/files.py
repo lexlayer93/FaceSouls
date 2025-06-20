@@ -1,17 +1,19 @@
 import struct
 from dataclasses import dataclass
 
+def struct_endian (byteorder):
+    if byteorder == "little":
+        return '<'
+    elif byteorder == "big":
+        return '>'
+    else:
+        return '='
 
 class BinaryParser:
-    def __init__ (self, buffer, endian = "little"):
+    def __init__ (self, buffer, endian=None):
         self.buffer = buffer
         self.offset = 0
-        if endian == "little":
-            self.endian = '<'
-        elif endian == "big":
-            self.endian = '>'
-        else:
-            self.endian = '='
+        self.endian = struct_endian(endian)
 
     @staticmethod
     def _struct_decoder (fmt_char, process = lambda o, n: o if n != '' else o[0]):
@@ -60,7 +62,7 @@ class BinaryParser:
 class _FaceGenFile:
     magic = None
 
-    def __init__(self, src=None, endian="little"):
+    def __init__(self, src=None, endian=None):
         if isinstance(src, str):
             self.load(src, endian)
         elif isinstance(src, bytes):
@@ -68,11 +70,11 @@ class _FaceGenFile:
         else:
             pass
 
-    def load (self, fname, endian):
+    def load (self, fname, endian=None):
         with open(fname, 'rb') as f: b = f.read()
         self.from_buffer(b, endian)
 
-    def from_buffer (self, b, endian="little"):
+    def from_buffer (self, b, endian=None):
         if b[:8] != self.magic:
             raise ValueError("Wrong magic number.")
         parser = BinaryParser(b[8:], endian)
@@ -303,12 +305,7 @@ class FaceGenFG(_FaceGenFile):
     magic = b"FRFG0001"
 
     def save (self, filename, endian=None):
-        if endian == "little":
-            endian = '<'
-        elif endian == "big":
-            endian = '>'
-        else:
-            endian = '='
+        endian = struct_endian(endian)
         with open(filename,'wb') as f:
             f.write(self.magic)
             s = struct.pack(f'{endian}2L', self.geo_basis_version, self.tex_basis_version)
@@ -317,15 +314,15 @@ class FaceGenFG(_FaceGenFile):
             f.write(s)
             s = struct.pack(f'{endian}2L', 0, self.detail_texture_flag)
             f.write(s)
-            s = struct.pack(f'<{self.GS}h', *(self.gs_data))
+            s = struct.pack(f'{endian}{self.GS}h', *(self.gs_data))
             f.write(s)
-            s = struct.pack(f'<{self.GA}h', *(self.ga_data))
+            s = struct.pack(f'{endian}{self.GA}h', *(self.ga_data))
             f.write(s)
-            s = struct.pack(f'<{self.TS}h', *(self.ts_data))
+            s = struct.pack(f'{endian}{self.TS}h', *(self.ts_data))
             f.write(s)
-            s = struct.pack(f'<{self.TA}h', *(self.ta_data))
+            s = struct.pack(f'{endian}{self.TA}h', *(self.ta_data))
             f.write(s)
-            s = struct.pack('<L', len(self.detail_image))
+            s = struct.pack(f'{endian}L', len(self.detail_image))
             f.write(s)
             f.write(self.detail_image)
 

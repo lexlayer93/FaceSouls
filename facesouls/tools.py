@@ -267,7 +267,14 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     def apply_seq (p):
         return s0 + mfit.dot(p)
 
-    if mode <= 0: # minimize controls difference
+    if mode <= 0: # minimize shape difference
+        def residual (p):
+            s = apply_seq(p)
+            return s - shape_target
+        def gradient (p):
+            return 2*residual(p).dot(mfit)
+
+    elif mode == 1: # minimize controls difference
         def residual (p):
             s = apply_seq(p)
             q = np.dot(cc.lgs_coeffs, s)
@@ -275,13 +282,6 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
             return q-qt
         def gradient (p):
             return 2*residual(p).dot(cc.lgs_coeffs).dot(mfit)
-
-    elif mode == 1: # minimize shape coords difference
-        def residual (p):
-            s = apply_seq(p)
-            return s - shape_target
-        def gradient (p):
-            return 2*residual(p).dot(mfit)
 
     elif mode >= 2: # minimize vertex difference
         v0 = sam.vertices_default.flatten()
@@ -324,6 +324,6 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     # apply solution
     for key, value in zip(available, result.x):
         cc.values[key] = value
-    cc.apply_sequence(sam)
+    cc.apply_sequence()
 
     return result

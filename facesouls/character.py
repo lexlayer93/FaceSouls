@@ -2,7 +2,7 @@ from .models import FaceGenerator, FaceGenSAM
 
 
 class CharacterCreator (FaceGenerator):
-    def __init__ (self, ctl, menu=None, models=None, preset=None, endian="little"):
+    def __init__ (self, ctl, menu=None, models=None, preset=None, endian=None):
         super().__init__(ctl, endian)
         self.all_at_once = False
         self.sliders = dict()
@@ -89,7 +89,7 @@ class CharacterCreator (FaceGenerator):
         else:
             self.update_values()
 
-    def load_data (self, fname, endian="little"):
+    def load_data (self, fname, endian=None):
         try:
             self.models[0].load_data(fname, endian)
         except FileNotFoundError:
@@ -99,7 +99,7 @@ class CharacterCreator (FaceGenerator):
             self.update_values()
             self.all_at_once = False
 
-    def save_data (self, fname, endian="little"):
+    def save_data (self, fname, endian=None):
         self.models[0].save_data(fname, endian)
 
     def load_values (self, fname):
