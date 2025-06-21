@@ -24,7 +24,7 @@ def rgba2gray (rgba):
     return gray.round().astype(np.uint8)
 
 
-def facemesh_plot (mesh, ax, rotation=0, persp="ortho", **kwargs):
+def facemesh_plot (mesh, ax, *, rotation=0, persp="ortho", **kwargs):
     if isinstance(mesh, Trimesh):
         vertices = mesh.vertices
         triangles = mesh.faces
@@ -229,15 +229,21 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
 
     transformation = compose_matrix(scale=(kt,kt,kt), angles=(at,bt,ct), translate=(xt,yt,zt))
 
-    ssm.gs_data += fit[:ssm.GS]
-    ssm.ga_data += fit[ssm.GS:]
-    return (fit, transformation, weighted_error)
+    return (ssm.gs_data + fit[:ssm.GS],
+            ssm.ga_data + fit[ssm.GS:],
+            transformation,
+            weighted_error)
 
 
 def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     cc = character_creator
     sequence = cc.sequence
-    available = [key for key in sequence if not cc.sliders[key].debug_only]
+    available = [key for tab in cc.tabs.values() for key in tab]
+
+    # available should be <= sequence
+    if not set(available).issubset(set(sequence)):
+        available = [key for key in sequence if not cc.sliders[key].debug_only]
+
     lgs_seq = [key for key in sequence if key//100 == 1]
     lgs_avail = [key for key in available if key//100 == 1]
     lgs_idx = [key % 100 for key in lgs_avail]
@@ -323,9 +329,6 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
                                constraints=[lower_lim, upper_lim],
                                **kwargs)
 
-    # apply solution
-    for key, value in zip(lgs_avail, result.x):
-        cc.values[key] = value
-    cc.apply_sequence(from_zero=cc.all_at_once)
-
-    return result
+    return (result.x,
+            lgs_avail,
+            result.fun)

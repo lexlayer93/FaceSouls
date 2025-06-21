@@ -15,13 +15,19 @@ class CharacterCreatorTK (tk.Frame):
         self._canvas = None
         self._polyc = None
 
-        notebook = ttk.Notebook(self)
-        notebook.pack(side=tk.BOTTOM, fill = tk.BOTH, expand=True)
+        style = ttk.Style()
+        style.configure("TNotebook", tabposition="wn")
+        style.configure("TNotebook.Tab", font="TkFixedFont")
 
+        notebook = ttk.Notebook(self)
+        notebook.config(width=300)
+        notebook.pack(side=tk.LEFT, fill = tk.BOTH, expand=True)
+
+        maxlen = max(len(t) for t in cc.tabs)
         for t,tab in cc.tabs.items():
             frame = tk.Frame(notebook)
             frame.pack(expand=True, fill=tk.BOTH)
-            notebook.add(frame, text=t)
+            notebook.add(frame, text=t.center(maxlen))
             for key in tab:
                 slider = cc.sliders[key]
                 var = tk.IntVar(value=slider.int_value, name=str(key))
@@ -32,15 +38,17 @@ class CharacterCreatorTK (tk.Frame):
                 var.trace_add("write", lambda key,*args, cc=self: self.set_slider(key))
                 self._tkvars[key] = var
 
-        fig = plt.Figure()
+        fig = plt.figure(figsize=plt.figaspect(1), facecolor='k')
         canvas = FigureCanvasTkAgg(fig, master=self)
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=False)
+        canvas_widget = canvas.get_tk_widget()
+        canvas_widget.config(bg="black", highlightthickness=0, bd=0)
+        canvas_widget.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         self._canvas = canvas
         ax = fig.add_axes([0, 0, 1, 1], projection='3d')
 
         verts = cc.models[0].vertices
         triangles = cc.models[0].triangles_only
-        self._polyc = facemesh_plot((verts, triangles), ax)
+        self._polyc = facemesh_plot((verts, triangles), ax, persp="persp")
         self._ignore = False
 
     def update_canvas (self):

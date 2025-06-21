@@ -226,7 +226,7 @@ class CharacterSlider:
         else:
             k = (key//100)*100
             idx = key % 100
-            self.debug_label = getattr(master, _DBLABELS[k])[idx]
+            self.debug_label = getattr(parent, _DBLABELS[k])[idx]
             self.label = self.debug_label
             self.float_range = _DFRANGES[k]
         self.int_range = (0, 255)
