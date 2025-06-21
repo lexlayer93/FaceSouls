@@ -237,9 +237,10 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
 def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     cc = character_creator
     sequence = cc.sequence
+    available = [key for key in sequence if not cc.sliders[key].debug_only]
     lgs_seq = [key for key in sequence if key//100 == 1]
-    available = [key for key in lgs_seq if not cc.sliders[key].debug_only]
-    indices = [key % 100 for key in available]
+    lgs_avail = [key for key in available if key//100 == 1]
+    lgs_idx = [key % 100 for key in lgs_avail]
 
     # cumulative effect of shape sliders
     mtx = np.zeros_like(cc.lgs_coeffs.T)
@@ -251,12 +252,13 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
         N = I - np.dot(c,c.T)
         mtx[:,idx] = Nt.dot(c).reshape(-1)
         Nt = Nt.dot(N)
-    mfit = mtx[:,indices]
+    mfit = mtx[:,lgs_idx]
 
     # initial state before shape sliders
     sam = cc.models[0]
     if cc.all_at_once:
-        preseq = [key for key in sequence if key//100 == 0]
+        prekeys = (10,11,14,20,21,24,30,31,34)
+        preseq = [key for key in sequence if key in prekeys]
         cc.set_shape_zero(sam)
         for key in preseq:
             value = cc.values[key]
@@ -300,7 +302,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     lower_lim = {"type": "ineq", "fun": lambda p: apply_seq(p).min() - smin}
 
     # sliders bounds
-    ranges = np.array([cc.sliders[fg_id].available_range for fg_id in available],
+    ranges = np.array([cc.sliders[key].available_range for key in lgs_avail],
                             dtype=np.float32)
     ranges.sort(axis=1)
 
@@ -310,7 +312,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
         np.any(p0 > ranges[:,1]) or
         upper_lim["fun"](p0) < 0 or
         lower_lim["fun"](p0) < 0):
-        p0 = np.array([cc.values[k] for k in available], dtype=np.float32)
+        p0 = np.array([cc.values[k] for k in lgs_avail], dtype=np.float32)
 
     # optimization
     kwargs.setdefault("method","SLSQP")
@@ -322,8 +324,8 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
                                **kwargs)
 
     # apply solution
-    for key, value in zip(available, result.x):
+    for key, value in zip(lgs_avail, result.x):
         cc.values[key] = value
-    cc.apply_sequence()
+    cc.apply_sequence(from_zero=cc.all_at_once)
 
     return result

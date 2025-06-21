@@ -2,8 +2,8 @@ from .models import FaceGenerator, FaceGenSAM
 
 
 class CharacterCreator (FaceGenerator):
-    def __init__ (self, ctl, menu=None, models=None, preset=None, endian=None):
-        super().__init__(ctl, endian)
+    def __init__ (self, ctl, menu=None, models=None, *, preset=None, endian=None):
+        super().__init__(ctl, endian=endian)
         self.all_at_once = False
         self.sliders = dict()
         self.values = dict()
@@ -27,23 +27,13 @@ class CharacterCreator (FaceGenerator):
         if self.all_at_once:
             self.load_values(preset)
         else:
-            self.load_data(preset, endian)
+            self.load_data(preset, endian=endian)
 
-    def toggle_sequence (self, flag=None):
-        if self.all_at_once == flag:
-            return
-        self.all_at_once = not self.all_at_once
-
-        if self.all_at_once:
-            self.apply_sequence()
-        else:
-            self.update_values()
-
-    def load_models (self, *models):
+    def load_models (self, *models, endian=None):
         self.models = []
         for sam in models:
             if not isinstance(sam, FaceGenSAM):
-                sam = FaceGenSAM(*sam)
+                sam = FaceGenSAM(*sam, endian=endian)
             self.fix_model(sam)
             self.models.append(sam)
         self.sync_models()
@@ -83,28 +73,30 @@ class CharacterCreator (FaceGenerator):
                 else:
                     pass
         self.reset_values()
-        self.all_at_once = flag
         if flag:
+            self.all_at_once = True
             self.apply_sequence()
         else:
+            self.all_at_once = False
             self.update_values()
+            self.sequence = [key for tab in self.tabs.values() for key in tab]
 
-    def load_data (self, fname, endian=None):
+    def load_data (self, fname, *, endian=None):
         try:
-            self.models[0].load_data(fname, endian)
+            self.models[0].load_data(fname, endian=endian)
         except FileNotFoundError:
             pass
         else:
             self.sync_models()
+            self.clip_data()
             self.update_values()
             self.all_at_once = False
 
-    def save_data (self, fname, endian=None):
-        self.models[0].save_data(fname, endian)
+    def save_data (self, fname, *, endian=None):
+        self.models[0].save_data(fname, endian=endian)
 
     def load_values (self, fname):
         try:
-            flag = not self.all_at_once
             with open(fname, 'r') as f:
                 rows = f.read().split(';')
                 del rows[-1]
@@ -115,31 +107,27 @@ class CharacterCreator (FaceGenerator):
                     slider = self.sliders[int(key)]
                     value = slider.int2float(value)
                     self.values[key] = value
-                    if flag:
-                        self.set_control(key, value)
-                        self.clip_data()
         except FileNotFoundError:
             pass
         else:
-            if flag:
-                self.update_values()
-            else:
-                self.apply_sequence()
+            self.apply_sequence()
+            self.all_at_once = True
 
-    def save_values (self, fname, sort=False):
+    def save_values (self, fname, *, sort=False):
+        output = ""
+        if not sort:
+            for key,slider in self.sliders.items():
+                if not slider.debug_only or key in self.sequence:
+                    output += f"{key:03d}, {slider.int_value};\n"
+        else:
+            for tab in self.tabs.values():
+                for key in tab:
+                    key = int(key)
+                    slider = self.sliders[key]
+                    output += f"{key:03d},{slider.int_value}; "
+                output += '\n'
         with open(fname, 'w') as f:
-            if not sort:
-                for key,slider in self.sliders.items():
-                    if not slider.debug_only:
-                        f.write(f"{key:03d}, {slider.int_value};\n")
-            else:
-                for tab,keys in self.tabs.items():
-                    row = ""
-                    for key in keys:
-                        key = int(key)
-                        slider = self.sliders[key]
-                        row += f"{key:03d},{slider.int_value}; "
-                    f.write(row[:-1]+'\n')
+            f.write(output)
 
     def set_slider (self, key, value):
         if isinstance(value, int):
@@ -154,9 +142,19 @@ class CharacterCreator (FaceGenerator):
             self.clip_data()
             self.update_values()
 
-    def apply_sequence (self):
+    def toggle_sequence (self, flag=None):
+        if self.all_at_once == flag:
+            return
+        self.all_at_once = not self.all_at_once
+
+        if self.all_at_once:
+            self.apply_sequence()
+        else:
+            self.update_values()
+
+    def apply_sequence (self, *, from_zero=True):
         sam = self.models[0]
-        self.set_zero(sam)
+        if from_zero: self.set_zero(sam)
         for key in self.sequence:
             value = self.values[key]
             self.set_control(key, value, sam)
@@ -216,8 +214,8 @@ class CharacterCreator (FaceGenerator):
 
 
 class CharacterSlider:
-    def __init__ (self, master, key):
-        self.master = master
+    def __init__ (self, parent, key):
+        self.parent = parent
         self.facegen_id = key
         self.debug_only = True
         if key < 100:
@@ -241,11 +239,11 @@ class CharacterSlider:
 
     @property
     def value (self):
-        return self.master.values[self.facegen_id]
+        return self.parent.values[self.facegen_id]
 
     @value.setter
     def value (self, x):
-        self.master.values[self.facegen_id] = float(x)
+        self.parent.values[self.facegen_id] = float(x)
 
     @property
     def int_value (self):

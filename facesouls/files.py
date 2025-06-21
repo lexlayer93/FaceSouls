@@ -10,7 +10,7 @@ def struct_endian (byteorder):
         return '='
 
 class BinaryParser:
-    def __init__ (self, buffer, endian=None):
+    def __init__ (self, buffer, *, endian=None):
         self.buffer = buffer
         self.offset = 0
         self.endian = struct_endian(endian)
@@ -62,22 +62,22 @@ class BinaryParser:
 class _FaceGenFile:
     magic = None
 
-    def __init__(self, src=None, endian=None):
+    def __init__(self, src=None, *, endian=None):
         if isinstance(src, str):
-            self.load(src, endian)
+            self.load(src, endian=endian)
         elif isinstance(src, bytes):
-            self.from_buffer(src, endian)
+            self.from_buffer(src, endian=endian)
         else:
             pass
 
-    def load (self, fname, endian=None):
+    def load (self, fname, *, endian=None):
         with open(fname, 'rb') as f: b = f.read()
-        self.from_buffer(b, endian)
+        self.from_buffer(b, endian=endian)
 
-    def from_buffer (self, b, endian=None):
+    def from_buffer (self, b, *, endian=None):
         if b[:8] != self.magic:
             raise ValueError("Wrong magic number.")
-        parser = BinaryParser(b[8:], endian)
+        parser = BinaryParser(b[8:], endian=endian)
         self._parse(parser)
 
 
@@ -304,7 +304,7 @@ class FaceGenTRI (_FaceGenFile):
 class FaceGenFG(_FaceGenFile):
     magic = b"FRFG0001"
 
-    def save (self, filename, endian=None):
+    def save (self, filename, *, endian=None):
         endian = struct_endian(endian)
         with open(filename,'wb') as f:
             f.write(self.magic)
