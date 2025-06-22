@@ -41,7 +41,7 @@ class CharacterCreator (FaceGenerator):
     def load_menu (self, fname):
         self.reset_sliders()
         self.tabs.clear()
-        flag = False
+        has_sequence = False
         with open(fname, 'r') as f: # menu file
             rows = f.read().split(';')
             del rows[-1]
@@ -61,7 +61,7 @@ class CharacterCreator (FaceGenerator):
                     self.tabs[tab].append(key)
                 elif key=="###":
                     self.sequence = [int(c) for c in cells[1:]]
-                    flag = True
+                    has_sequence = True
                 elif key=="##1":
                     self.shape_sym_range = (float(cells[1]), float(cells[2]))
                 elif key=="##2":
@@ -72,13 +72,9 @@ class CharacterCreator (FaceGenerator):
                     self.texture_asym_range = (float(cells[1]), float(cells[2]))
                 else:
                     pass
+        self.all_at_once = has_sequence
         self.reset_values()
-        if flag:
-            self.all_at_once = True
-            self.apply_sequence()
-        else:
-            self.all_at_once = False
-            self.update_values()
+        if not has_sequence:
             self.sequence = [key for tab in self.tabs.values() for key in tab]
 
     def load_data (self, fname, *, endian=None):
@@ -88,9 +84,8 @@ class CharacterCreator (FaceGenerator):
             pass
         else:
             self.sync_models()
-            self.clip_data()
-            self.update_values()
             self.all_at_once = False
+            self.update()
 
     def save_data (self, fname, *, endian=None):
         self.models[0].save_data(fname, endian=endian)
@@ -110,8 +105,8 @@ class CharacterCreator (FaceGenerator):
         except FileNotFoundError:
             pass
         else:
-            self.apply_sequence()
             self.all_at_once = True
+            self.update()
 
     def save_values (self, fname, *, sort=False):
         output = ""
@@ -129,41 +124,35 @@ class CharacterCreator (FaceGenerator):
         with open(fname, 'w') as f:
             f.write(output)
 
-    def set_slider (self, key, value):
-        if isinstance(value, int):
-            value = self.sliders[key].int2float(value)
-
-        self.values[key] = float(value)
-
+    def update (self):
+        sam = self.models[0]
         if self.all_at_once:
-            self.apply_sequence()
+            self.set_zero(sam)
+            for key in self.sequence:
+                value = self.values[key]
+                self.set_control(key, value, sam)
+                self.clip_data(sam)
         else:
-            self.set_control(key, value)
-            self.clip_data()
-            self.update_values()
+            self.clip_data(sam)
+            for key in self.values:
+                self.values[key] = self.get_control(key, sam)
 
     def toggle_sequence (self, flag=None):
         if self.all_at_once == flag:
             return
         self.all_at_once = not self.all_at_once
+        self.update()
+
+    def set_slider (self, key, value):
+        if isinstance(value, int):
+            value = self.sliders[key].int2float(value)
 
         if self.all_at_once:
-            self.apply_sequence()
+            self.values[key] = value
+            self.update()
         else:
-            self.update_values()
-
-    def apply_sequence (self, *, from_zero=True):
-        sam = self.models[0]
-        if from_zero: self.set_zero(sam)
-        for key in self.sequence:
-            value = self.values[key]
-            self.set_control(key, value, sam)
-            self.clip_data(sam)
-
-    def update_values (self):
-        src = self.models[0]
-        for key in self.values:
-            self.values[key] = self.get_control(key, src)
+            self.set_control(key, value)
+            self.update()
 
     def clip_data (self, sam=None):
         if sam is None: sam = self.models[0]
@@ -185,6 +174,7 @@ class CharacterCreator (FaceGenerator):
         self.values.clear()
         for key,slider in self.sliders.items():
             self.values[key] = sum(slider.float_range)/2
+        self.update()
 
     def reset_sliders (self):
         self.sliders.clear()
