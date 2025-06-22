@@ -6,59 +6,136 @@ from facesouls.character import CharacterCreator
 from facesouls.tools import facemesh_plot
 
 
-class CharacterCreatorTK (CharacterCreator):
-    def __init__ (self, parent, *args, **kwargs):
+class CCMainTk (tk.Tk):
+    def __init__ (self, *args, char_creator, **kwargs):
         super().__init__(*args, **kwargs)
-        main_frame = tk.Frame(parent)
-        self.tk_widget = main_frame
+        cc = char_creator
+        ccframe = CCFrameTk(self, char_creator=cc)
+        self._cc = cc
+        self._ccframe = ccframe
+        ccframe.pack(fill=tk.BOTH, expand=True)
+
+        self.protocol("WM_DELETE_WINDOW", self.quit)
+        self.title("Character Creator Demo")
+        menubar = tk.Menu(self)
+
+        file_menu = tk.Menu(menubar, tearoff=0)
+        _load_menu = tk.Menu(file_menu, tearoff=0)
+        _load_menu.add_command(label="Sliders", command=self.ask_load_values)
+        _load_menu.add_command(label="FaceGen FG", command=self.ask_load_data)
+        _save_menu = tk.Menu(file_menu, tearoff=0)
+        _save_menu.add_command(label="Sliders", command=self.ask_save_values)
+        _save_menu.add_command(label="FaceGen FG", command=self.ask_save_data)
+        _export_menu = tk.Menu(file_menu, tearoff=0)
+        _export_menu.add_command(label="Wavefront OBJ", command=self.ask_export_obj)
+        file_menu.add_cascade(label="Load...", menu=_load_menu)
+        file_menu.add_cascade(label="Save...", menu=_save_menu)
+        file_menu.add_cascade(label="Export...", menu=_export_menu)
+
+        options_menu = tk.Menu(menubar, tearoff=0)
+        options_menu.add_checkbutton(label="Slider interlock", variable=ccframe._interlock)
+
+        menubar.add_cascade(label="File", menu=file_menu)
+        menubar.add_cascade(label="Options", menu=options_menu)
+        self.config(menu=menubar)
+
+    def ask_load_values (self):
+        path = tk.filedialog.askopenfilename(
+            title = "Load...",
+            filetypes = [("Sliders values", "*.csv")],
+            defaultextension=".csv"
+            )
+        self._cc.load_values(path)
+        self._ccframe._interlock.set(not self._cc.all_at_once)
+
+    def ask_save_values (self):
+        path = tk.filedialog.asksaveasfilename(
+            title = "Save...",
+            filetypes = [("Sliders values", "*.csv")],
+            defaultextension=".csv"
+            )
+        self._cc.save_values(path)
+
+    def ask_load_data (self):
+        path = tk.filedialog.askopenfilename(
+            title = "Load...",
+            filetypes = [("FaceGen FG", "*.fg")],
+            defaultextension=".fg"
+            )
+        self._cc.load_data(path)
+        self._ccframe._interlock.set(not self._cc.all_at_once)
+
+    def ask_save_data (self):
+        path = tk.filedialog.askopenfilename(
+            title = "Save...",
+            filetypes = [("FaceGen FG", "*.fg")],
+            defaultextension=".fg"
+            )
+        self._cc.save_data(path)
+
+    def ask_export_obj (self):
+        path = tk.filedialog.askopenfilename(
+            title = "Export...",
+            filetypes = [("Wavefront OBJ", "*.obj")],
+            defaultextension=".obj"
+            )
+        self._cc.models[0].export_obj(path)
+
+
+class CCFrameTk (tk.Frame):
+    def __init__ (self, parent, *args, char_creator, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        cc = char_creator
+        self._cc = cc
         self._tkvars = dict()
         self._canvas = None
         self._polyc = None
+        self._interlock = tk.BooleanVar(value=not cc.all_at_once)
+        self._interlock.trace_add("write", self.interlock_callback)
         self._debug_text = list()
 
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(0, weight=1)
-        main_frame.rowconfigure(1, weight=1)
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
+        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
 
         style = ttk.Style()
         style.configure("TNotebook", tabposition="wn")
         style.configure("TNotebook.Tab", font="TkFixedFont")
 
-        notebook = ttk.Notebook(main_frame)
+        notebook = ttk.Notebook(self)
         notebook.config(width=300)
         notebook.grid(row=0, column=0, sticky="nsew")
 
-        maxlen = max(len(t) for t in self.tabs)
-        self._callback = lambda key,*args, cc=self: cc.set_slider(key)
-        for t,tab in self.tabs.items():
+        maxlen = max(len(t) for t in cc.tabs)
+        for t,tab in cc.tabs.items():
             frame = tk.Frame(notebook)
             frame.pack(expand=True, fill=tk.BOTH)
             notebook.add(frame, text=t.center(maxlen))
             for key in tab:
-                slider = self.sliders[key]
-                var = tk.IntVar(value=slider.int_value, name=str(key))
+                slider = cc.sliders[key]
+                int_var = tk.IntVar(value=slider.int_value, name=str(key))
                 scale = tk.Scale(frame, orient=tk.HORIZONTAL, label=slider.label,
                                  from_=slider.int_range[0], to=slider.int_range[1],
-                                 variable=var)
+                                 variable=int_var)
                 scale.pack(expand=False, fill='x')
-                var.trace_add("write", self._callback)
-                self._tkvars[key] = var
+                int_var.trace_add("write", self.slider_callback)
+                self._tkvars[key] = int_var
 
         fig = plt.figure(figsize=plt.figaspect(1), facecolor='k')
-        canvas = FigureCanvasTkAgg(fig, master=main_frame)
+        canvas = FigureCanvasTkAgg(fig, master=self)
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.config(bg="black", highlightthickness=0, bd=0)
         canvas_widget.grid(row=0, column=1, sticky="nsew")
         self._canvas = canvas
         ax = fig.add_axes([0, 0, 1, 1], projection='3d')
 
-        verts = self.models[0].vertices
-        triangles = self.models[0].triangles_only
+        verts = cc.models[0].vertices
+        triangles = cc.models[0].triangles_only
         self._polyc = facemesh_plot((verts, triangles), ax, persp="persp")
         self._ignore = False
 
-        dbframe1 = tk.Frame(main_frame, relief="sunken", borderwidth=2)
+        dbframe1 = tk.Frame(self, relief="sunken", borderwidth=2)
         dbframe1.grid(row=1, column=0, sticky="nsew")
         scrollbar1 = tk.Scrollbar(dbframe1)
         scrollbar1.pack(side=tk.LEFT, fill=tk.Y)
@@ -67,7 +144,7 @@ class CharacterCreatorTK (CharacterCreator):
         text1.config(yscrollcommand=scrollbar1.set)
         scrollbar1.config(command=text1.yview)
 
-        dbframe2 = tk.Frame(main_frame, relief="sunken", borderwidth=2)
+        dbframe2 = tk.Frame(self, relief="sunken", borderwidth=2)
         dbframe2.grid(row=1, column=1, sticky="nsew")
         scrollbar2 = tk.Scrollbar(dbframe2)
         scrollbar2.pack(side=tk.RIGHT, fill=tk.Y)
@@ -78,139 +155,82 @@ class CharacterCreatorTK (CharacterCreator):
         self._debug_text = [text1, text2]
         self.update_debug()
 
-    def set_slider (self, key, value=None):
+    def slider_callback (self, key, *args):
         if self._ignore:
             return
         key = int(key)
-        value = value or self._tkvars[key].get()
-        super().set_slider(key, value)
+        value = self._tkvars[key].get()
+        self._cc.set_slider(key, value)
         self.update_all()
 
-    def toggle_sequence (self, *args, **kwargs):
-        super().toggle_sequence(*args, **kwargs)
+    def interlock_callback (self, *args, **kwargs):
+        flag = not self._interlock.get()
+        self._cc.toggle_sequence(flag)
         self.update_all()
 
     def update_all (self):
         self.update_canvas()
-        self.update_tkvars()
         self.update_debug()
+        self.update_tkvars()
 
     def update_canvas (self):
-        verts = self.models[0].vertices
-        triangles = self.models[0].triangles_only
+        verts = self._cc.models[0].vertices
+        triangles = self._cc.models[0].triangles_only
         self._polyc.set_verts(verts[triangles])
         self._canvas.draw()
 
     def update_tkvars (self):
         self._ignore = True
         for key, int_var in self._tkvars.items():
-            value = self.sliders[key].int_value
+            value = self._cc.sliders[key].int_value
             int_var.set(value)
         self._ignore = False
 
     def update_debug (self, fmt=".3f"):
-        face = self.models[0]
+        cc = self._cc
         text = "FEATURES:"
-        keys = (10, 20, 30)
-        for k in keys:
-            svalue = self.values[k]
-            cvalue = self.get_control(k)
-            label = self.sliders[k].debug_label
+        for k in (10, 20, 30):
+            svalue = cc.values[k]
+            cvalue = cc.get_control(k)
+            label = cc.sliders[k].debug_label
             text += f"\n[{svalue:{fmt}}]({cvalue:{fmt}})<{label}"
 
         text += "\n\nSYM. SHAPE CONTROLS:"
-        for i in range(self.LGS):
+        for i in range(cc.LGS):
             k = 100+i
-            svalue = self.values[k]
-            cvalue = self.get_control(k)
-            label = self.sliders[k].debug_label
+            svalue = cc.values[k]
+            cvalue = cc.get_control(k)
+            label = cc.sliders[k].debug_label
             text += f"\n{i:02d}:[{svalue:{fmt}}]({cvalue:{fmt}})<{label}"
 
         text += "\n\nSYM. TEXTURE CONTROLS:"
-        for i in range(self.LTS):
+        for i in range(cc.LTS):
             k = 200+i
-            svalue = self.values[k]
-            cvalue = self.get_control(k)
-            label = self.sliders[k].debug_label
+            svalue = cc.values[k]
+            cvalue = cc.get_control(k)
+            label = cc.sliders[k].debug_label
             text += f"\n{i:02d}:[{svalue:{fmt}}]({cvalue:{fmt}})<{label}"
 
         self._debug_text[0].delete(1.0, tk.END)
         self._debug_text[0].insert(tk.END, text)
 
+        face = cc.models[0]
         text = "SYM. SHAPE DATA:"
-        for i in range(self.GS):
-            text += f"\n[{i:02d}]: {face.gs_data[i]:{fmt}}"
+        for i in range(cc.GS):
+            text += f"\n{i:02d}:({face.gs_data[i]:{fmt}})"
 
         text += "\n\nSYM. TEXTURE DATA:"
-        for i in range(self.TS):
-            text += f"\n[{i:02d}]: {face.ts_data[i]:{fmt}}"
+        for i in range(cc.TS):
+            text += f"\n{i:02d}:({face.ts_data[i]:{fmt}})"
         self._debug_text[1].delete(1.0, tk.END)
         self._debug_text[1].insert(tk.END, text)
-
-
-    def ask_open (self):
-        path = tk.filedialog.askopenfilename(
-            title = "Open...",
-            filetypes = [("Sliders values", "*.csv"),
-                         ("FaceGen FG", "*.fg")],
-            defaultextension=".csv"
-            )
-        extension = path.split('.')[-1]
-        if extension == "csv":
-            self.load_values(path)
-        elif extension == "fg":
-            self.load_data(path)
-        self.update_all()
-
-    def ask_save (self):
-        path = tk.filedialog.asksaveasfilename(
-            title = "Save...",
-            filetypes = [("Sliders values", "*.csv"),
-                         ("FaceGen FG", "*.fg"),
-                         ("Wavefront OBJ", "*.obj")],
-            defaultextension=".csv"
-            )
-        extension = path.split('.')[-1]
-        if extension == "csv":
-            self.save_values(path, sort=False)
-        elif extension == "fg":
-            self.save_data(path)
-        elif extension == "obj":
-            self.models[0].export_as_obj(path)
-
-    def ask_export (self):
-        path = tk.filedialog.asksaveasfilename(
-            title = "Export...",
-            filetypes = [("Wavefront OBJ", "*.obj")],
-            defaultextension=".obj"
-            )
-        extension = path.split('.')[-1]
-        if extension == "obj":
-            self.models[0].export_as_obj(path)
 
 if __name__ == "__main__":
     import sys
     assert len(sys.argv) >= 5
-    root = tk.Tk()
-    root.protocol("WM_DELETE_WINDOW", root.quit)
-    root.title("Character Creator Demo")
 
     ctl, csv, tri, egm = sys.argv[1:5] # si.ctl, ds3.csv, FG_A_0100.tri, FG_A_0100.egm
     face = (tri, egm)
-    cc = CharacterCreatorTK(root, ctl, csv, [face])
-    cc.tk_widget.pack(expand=True, fill=tk.BOTH)
+    cc = CharacterCreator(ctl, csv, [face])
 
-    menubar = tk.Menu(root)
-    file_menu = tk.Menu(menubar, tearoff=0)
-    file_menu.add_command(label="Open...", command=cc.ask_open)
-    file_menu.add_command(label="Save as...", command=cc.ask_save)
-    file_menu.add_command(label="Export as...", command=cc.ask_export)
-
-    options_menu = tk.Menu(menubar, tearoff=0)
-    options_menu.add_command(label="Toggle mode", command=cc.toggle_sequence)
-
-    root.config(menu=menubar)
-    menubar.add_cascade(label="File", menu=file_menu)
-    menubar.add_cascade(label="Options", menu=options_menu)
-
-    root.mainloop()
+    CCMainTk(char_creator=cc).mainloop()
