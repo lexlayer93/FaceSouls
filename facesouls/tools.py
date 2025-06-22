@@ -261,7 +261,8 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     mfit = mtx[:,lgs_idx]
 
     # initial state before shape sliders
-    sam = cc.models[0]
+    sam = cc.test_model()
+    sam.gs_data = cc.models[0].gs_data.copy()
     if cc.all_at_once:
         prekeys = (10,11,14,20,21,24,30,31,34)
         preseq = [key for key in sequence if key in prekeys]
@@ -329,6 +330,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
                                constraints=[lower_lim, upper_lim],
                                **kwargs)
 
-    return (result.x,
-            lgs_avail,
-            result.fun)
+    solution = zip(lgs_avail, result.x)
+
+    return (list(solution),
+            result)
