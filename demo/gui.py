@@ -87,12 +87,12 @@ class CCMenu (tk.Menu):
         self.master._cc.save_data(path)
 
     def ask_export_obj (self):
-        path = tk.filedialog.askopenfilename(
+        path = tk.filedialog.asksaveasfilename(
             title = "Export...",
             filetypes = [("Wavefront OBJ", "*.obj")],
             defaultextension=".obj"
             )
-        self.master._cc.models[0].export_obj(path)
+        self.master._cc.models[0].export_as_obj(path)
 
 
 class CCEditorFrame (tk.Frame):

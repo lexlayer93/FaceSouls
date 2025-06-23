@@ -17,8 +17,28 @@ class FaceGenSSM:
     def vertices (self):
         try:
             return self.vertices0 + self.gs_deltas.dot(self.gs_data) + self.ga_deltas.dot(self.ga_data)
-        except:
+        except AttributeError:
             return None
+
+    def copy (self, dst = None):
+        if dst is None: dst = FaceGenSSM.__new__(FaceGenSSM)
+        try:
+            dst.vertices0 = self.vertices0
+            dst.triangles = self.triangles
+            dst.quads = self.quads
+            dst.triangles_only = self.triangles_only
+            dst.uv_vertices = self.uv_vertices
+            dst.uv_triangles = self.uv_triangles
+            dst.uv_quads = self.uv_quads
+            dst.uv_triangles_only = self.uv_triangles_only
+            dst.gs_deltas = self.gs_deltas
+            dst.ga_deltas = self.ga_deltas
+        except AttributeError:
+            pass
+        dst.GS, dst.GA = self.GS, self.GA
+        dst.gs_data = self.gs_data.copy()
+        dst.ga_data = self.ga_data.copy()
+        return dst
 
     def load_shape_model (self, tri, egm, *, endian=None):
         if isinstance(tri, str):
@@ -84,8 +104,21 @@ class FaceGenSTM:
     def pixels (self):
         try:
             return self.pixels0 + self.ts_deltas.dot(self.ts_data) + self.ta_deltas.dot(self.ta_data)
-        except:
+        except AttributeError:
             return None
+
+    def copy (self, dst=None):
+        if dst is None: dst = FaceGenSTM.__new__(FaceGenSTM)
+        try:
+            dst.pixels0 = self.pixels0
+            dst.ts_deltas = self.ts_deltas
+            dst.ta_deltas = self.ta_deltas
+        except AttributeError:
+            pass
+        dst.TS, dst.TA = self.TS, self.TA
+        dst.ts_data = self.ts_data.copy()
+        dst.ta_data = self.ta_data.copy()
+        return dst
 
     def load_texture_model (self, bmp, egt, *, endian=None):
         if isinstance(bmp, str):
@@ -127,9 +160,19 @@ class FaceGenSAM (FaceGenSSM, FaceGenSTM):
         FaceGenSSM.__init__(self, tri, egm, fg, endian=endian)
         FaceGenSTM.__init__(self, bmp, egt, fg, endian=endian)
 
+    def copy (self, dst=None):
+        if dst is None: dst = FaceGenSAM.__new__(FaceGenSAM)
+        FaceGenSSM.copy(self, dst)
+        FaceGenSTM.copy(self, dst)
+        return dst
+
     def load_model (self, tri=None, egm=None, bmp=None, egt=None, *, endian=None):
         self.load_shape_model(tri, egm, endian=endian)
         self.load_texture_model(bmp, egt, endian=endian)
+
+    def load_data (self, fg, *, endian=None):
+        fg = self.load_shape_data(fg, endian=endian)
+        self.load_texture_data(fg)
 
     def save_data (self, fname, *, endian=None):
         fg = FaceGenFG()
@@ -145,9 +188,7 @@ class FaceGenSAM (FaceGenSSM, FaceGenSTM):
         fg.detail_image = b''
         fg.save(fname, endian)
 
-    def load_data (self, fg, *, endian=None):
-        fg = self.load_shape_data(fg, endian=endian)
-        self.load_texture_data(fg)
+
 
 
 class FaceGenerator:

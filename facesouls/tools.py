@@ -1,14 +1,18 @@
+import os
 import numpy as np
 from scipy import optimize
-import dlib
-from trimesh.base import Trimesh
-from trimesh.proximity import closest_point
-from trimesh.registration import procrustes, icp, nricp_amberg, nricp_sumner
-from trimesh.triangles import points_to_barycentric, barycentric_to_points
-from trimesh.transformations import compose_matrix, decompose_matrix
 import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
-import os
+try:
+    import dlib
+    from trimesh.base import Trimesh
+    from trimesh.proximity import closest_point
+    from trimesh.registration import procrustes, icp, nricp_amberg, nricp_sumner
+    from trimesh.triangles import points_to_barycentric, barycentric_to_points
+    from trimesh.transformations import compose_matrix, decompose_matrix
+except ModuleNotFoundError:
+    pass
+
 
 current_dir = os.path.dirname(__file__)
 DLIB_PREDICTOR_PATH = os.path.join(current_dir, "shape_predictor_68_face_landmarks.dat")
@@ -16,19 +20,11 @@ DLIB_DETECTOR = None
 DLIB_PREDICTOR = None
 
 
-def rgba2gray (rgba):
-    r = rgba[:,:,0].astype(np.float32)
-    g = rgba[:,:,1].astype(np.float32)
-    b = rgba[:,:,2].astype(np.float32)
-    gray = 0.114*b + 0.587*g + 0.299*r
-    return gray.round().astype(np.uint8)
-
-
 def facemesh_plot (mesh, ax, *, rotation=0, persp="ortho", **kwargs):
-    if isinstance(mesh, Trimesh):
+    try:
         vertices = mesh.vertices
         triangles = mesh.faces
-    else:
+    except AttributeError:
         vertices, triangles = mesh
 
     kwargs.setdefault("color", "peachpuff")
@@ -59,10 +55,10 @@ def facemesh_landmarks (mesh):
     if DLIB_PREDICTOR is None:
         DLIB_PREDICTOR = dlib.shape_predictor(DLIB_PREDICTOR_PATH)
 
-    if isinstance(mesh, Trimesh):
+    try:
         vertices = mesh.vertices
         triangles = mesh.faces
-    else:
+    except AttributeError:
         vertices, triangles = mesh
 
     fig = plt.figure(facecolor='k', dpi=300)
@@ -73,7 +69,11 @@ def facemesh_landmarks (mesh):
     plt.close(fig)
 
     img_rgba = np.frombuffer(buf, np.uint8).reshape((height,width,4))
-    img_gray = rgba2gray(img_rgba)
+    r = img_rgba[:,:,0].astype(np.float32)
+    g = img_rgba[:,:,1].astype(np.float32)
+    b = img_rgba[:,:,2].astype(np.float32)
+    gray = 0.114*b + 0.587*g + 0.299*r
+    img_gray = gray.round().astype(np.uint8)
     mask = img_gray > 0
     coords = np.argwhere(mask)
 
