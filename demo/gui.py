@@ -281,11 +281,11 @@ class CCCanvas (FigureCanvasTkAgg):
         self.widget = widget
 
     def replot (self, *models):
+        if len(models) == 0:
+            return
         fig = self.figure
         for ax in fig.axes:
             ax.remove()
-        if len(models) == 0:
-            return
         ax = fig.add_axes([0, 0, 1, 1], projection="3d")
         self.collection.clear()
         for sam in models:
