@@ -285,20 +285,21 @@ class FaceGenTRI (_FaceGenFile):
 
         # ETC
 
-    def export_as_obj (self, fname):
-        with open(fname, 'w') as f:
-            for v in self.vertices:
-                s = ' '.join(str(x) for x in v)
-                f.write('v ' + s + '\n')
-            for vt in self.uv_vertices:
-                s = ' '.join(str(uv) for uv in vt)
-                f.write("vt " + s + '\n')
-            for t1, t2 in zip(self.triangles, self.uv_triangles):
-                s = ' '.join(f"{i+1}/{j+1}" for i,j in zip(t1, t2))
-                f.write("f " + s + '\n')
-            for q1, q2 in zip(self.quads, self.uv_quads):
-                s = " ".join(f"{i+1}/{j+1}" for i,j in zip(q1,q2))
-                f.write("f " + s + '\n')
+    def dump_obj (self, o1=0, o2=0):
+        out = ""
+        for v in self.vertices:
+            s = ' '.join(str(x) for x in v)
+            out += "v " + s + '\n'
+        for vt in self.uv_vertices:
+            s = ' '.join(str(uv) for uv in vt)
+            out += "vt " + s + '\n'
+        for t1, t2 in zip(self.triangles, self.uv_triangles):
+            s = ' '.join(f"{i+o1+1}/{j+o2+1}" for i,j in zip(t1, t2))
+            out += "f " + s + '\n'
+        for q1, q2 in zip(self.quads, self.uv_quads):
+            s = ' '.join(f"{i+o1+1}/{j+o2+1}" for i,j in zip(q1,q2))
+            out += "f " + s + '\n'
+        return out
 
 
 class FaceGenFG(_FaceGenFile):

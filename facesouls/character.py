@@ -124,6 +124,18 @@ class CharacterCreator (FaceGenerator):
         with open(fname, 'w') as f:
             f.write(output)
 
+    def export_as_obj (self, fname):
+        out = ""
+        o1, o2 = 0, 0
+        for i,sam in enumerate(self.models):
+            out += f"#{i} model\no part{i}\n"
+            out += sam.dump_obj(o1, o2)
+            o1 = len(sam.vertices0)
+            o2 = len(sam.uv_vertices)
+        with open(fname,'w') as f:
+            f.write(out)
+        return out
+
     def update (self):
         sam = self.models[0]
         if self.all_at_once:
@@ -146,7 +158,6 @@ class CharacterCreator (FaceGenerator):
     def set_slider (self, key, value):
         if isinstance(value, int):
             value = self.sliders[key].int2float(value)
-
         if self.all_at_once:
             self.values[key] = value
             self.update()

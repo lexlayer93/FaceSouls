@@ -86,8 +86,8 @@ class FaceGenSSM:
             fg = None
         return fg
 
-    def export_as_obj (self, fname):
-        FaceGenTRI.export_as_obj(self, fname)
+    def dump_obj (self, *args):
+        return FaceGenTRI.dump_obj(self, *args)
 
 
 class FaceGenSTM:
@@ -187,8 +187,6 @@ class FaceGenSAM (FaceGenSSM, FaceGenSTM):
         fg.detail_texture_flag = 0
         fg.detail_image = b''
         fg.save(fname, endian)
-
-
 
 
 class FaceGenerator:
