@@ -11,4 +11,5 @@ Those files must be compressed together inside a ZIP file, like:
 - menu.csv
 - something.tri
 - something.egm
+
 Demo GUI will ask for such zip.
