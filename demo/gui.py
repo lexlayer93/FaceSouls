@@ -4,15 +4,38 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from facesouls.character import CharacterCreator
 from facesouls.tools import facemesh_plot, cc_target_shape
+from zipfile import ZipFile
 
 
 class CharacterCreatorTk (tk.Tk):
-    def __init__ (self, cc, *args, **kwargs):
+    def __init__ (self, cc=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.character_creator = cc
-
         self.protocol("WM_DELETE_WINDOW", self.quit)
         self.title("Character Creator Demo")
+        self.withdraw()
+
+    def mainloop (self):
+        if self.character_creator is None:
+            path = tk.filedialog.askopenfilename(parent=self,
+                title="Open...",
+                filetypes=[("Character Creator files","*.zip")],
+                defaultextension=".zip")
+            with ZipFile(path, 'r') as zf:
+                lof = sorted(zf.namelist())
+                ctl_list = [f for f in lof if f.endswith(".ctl")]
+                csv_list = [f for f in lof if f.endswith(".csv")]
+                tri_list = [f for f in lof if f.endswith(".tri")]
+                ctl = zf.open(ctl_list[0]).read()
+                csv = zf.open(csv_list[0]).read()
+                models = list()
+                for tri in tri_list:
+                    basename = tri.split('.',1)[0]
+                    egm = basename + ".egm"
+                    tri = zf.open(tri).read()
+                    egm = zf.open(egm).read()
+                    models.append((tri,egm))
+            self.character_creator = CharacterCreator(ctl, csv, models)
 
         editor = CCMainFrame(self)
         editor.pack(fill=tk.BOTH, expand=True)
@@ -25,6 +48,9 @@ class CharacterCreatorTk (tk.Tk):
         menubar = CCMainMenu(self)
         self.config(menu=menubar)
         self.mainmenu = menubar
+
+        self.deiconify()
+        super().mainloop()
 
 
 class CCMainMenu (tk.Menu):
@@ -68,7 +94,7 @@ class CCMainMenu (tk.Menu):
         _load_menu.entryconfig(1 if cc.all_at_once else 0, state="disabled")
 
         tools_menu = tk.Menu(self, tearoff=0)
-        tools_menu.add_command(label="Replicate FG",
+        tools_menu.add_command(label="FG Replication",
                                command=parent.top_repfg.deiconify)
 
         self.add_cascade(label="File", menu=file_menu)
@@ -396,11 +422,4 @@ class CCCanvas (FigureCanvasTkAgg):
 
 
 if __name__ == "__main__":
-    import sys
-    assert len(sys.argv) >= 5
-
-    ctl, csv, tri, egm = sys.argv[1:5] # si.ctl, ds3.csv, FG_A_0100.tri, FG_A_0100.egm
-    face = (tri, egm)
-    cc = CharacterCreator(ctl, csv, [face])
-
-    CharacterCreatorTk(cc).mainloop()
+    CharacterCreatorTk().mainloop()

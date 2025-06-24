@@ -20,30 +20,34 @@ class FaceGenSSM:
         except AttributeError:
             return None
 
-    def copy (self, dst = None):
-        if dst is None: dst = FaceGenSSM.__new__(FaceGenSSM)
+    def copy (self, *, to=None):
+        if to is None: to = FaceGenSSM.__new__(FaceGenSSM)
         try:
-            dst.vertices0 = self.vertices0
-            dst.triangles = self.triangles
-            dst.quads = self.quads
-            dst.triangles_only = self.triangles_only
-            dst.uv_vertices = self.uv_vertices
-            dst.uv_triangles = self.uv_triangles
-            dst.uv_quads = self.uv_quads
-            dst.uv_triangles_only = self.uv_triangles_only
-            dst.gs_deltas = self.gs_deltas
-            dst.ga_deltas = self.ga_deltas
+            to.vertices0 = self.vertices0
+            to.triangles = self.triangles
+            to.quads = self.quads
+            to.triangles_only = self.triangles_only
+            to.uv_vertices = self.uv_vertices
+            to.uv_triangles = self.uv_triangles
+            to.uv_quads = self.uv_quads
+            to.uv_triangles_only = self.uv_triangles_only
+            to.gs_deltas = self.gs_deltas
+            to.ga_deltas = self.ga_deltas
         except AttributeError:
             pass
-        dst.GS, dst.GA = self.GS, self.GA
-        dst.gs_data = self.gs_data.copy()
-        dst.ga_data = self.ga_data.copy()
-        return dst
+        to.GS, to.GA = self.GS, self.GA
+        to.gs_data = self.gs_data.copy()
+        to.ga_data = self.ga_data.copy()
+        return to
+
+    def copy_shape_data (self, src):
+        np.copyto(self.gs_data, src.gs_data)
+        np.copyto(self.ga_data, src.ga_data)
 
     def load_shape_model (self, tri, egm, *, endian=None):
-        if isinstance(tri, str):
-            tri = FaceGenTRI(tri, endian=endian)
-        if isinstance(tri, FaceGenTRI):
+        try:
+            if not isinstance(tri, FaceGenTRI):
+                tri = FaceGenTRI(tri, endian=endian)
             self.vertices0 = np.array(tri.vertices, dtype=np.float32)
             self.triangles = np.array(tri.triangles, dtype=np.uint32)
             self.quads = np.array(tri.quads, dtype=np.uint32)
@@ -58,12 +62,12 @@ class FaceGenSSM:
             triangles2 = np.delete(self.uv_quads, 1, axis=1)
             triangles3 = np.delete(self.uv_quads, 3, axis=1)
             self.uv_triangles_only = np.concatenate((triangles1, triangles2, triangles3), axis=0)
-        else:
+        except TypeError:
             tri = None
 
-        if isinstance(egm, str):
-            egm = FaceGenEGM(egm, endian=endian)
-        if isinstance(egm, FaceGenEGM):
+        try:
+            if not isinstance(egm, FaceGenEGM):
+                egm = FaceGenEGM(egm, endian=endian)
             self.geo_basis_version = egm.geo_basis_version
             self.GS = np.uint32(egm.GS)
             self.GA = np.uint32(egm.GA)
@@ -71,18 +75,18 @@ class FaceGenSSM:
             self.gs_deltas = np.transpose(gs_deltas, (1,2,0)).astype(np.float32)
             ga_deltas = [np.array(egm.ga_deltas[i])*egm.ga_scales[i] for i in range(egm.GA)]
             self.ga_deltas = np.transpose(ga_deltas, (1,2,0)).astype(np.float32)
-        else:
+        except TypeError:
             egm = None
 
         return tri, egm
 
     def load_shape_data (self, fg, *, endian=None):
-        if isinstance(fg, str):
-            fg = FaceGenFG(fg, endian=endian)
-        if isinstance(fg, FaceGenFG):
+        try:
+            if not isinstance(fg, FaceGenFG):
+                fg = FaceGenFG(fg, endian=endian)
             self.gs_data = np.array(fg.gs_data, dtype=np.float32)/1000
             self.ga_data = np.array(fg.ga_data, dtype=np.float32)/1000
-        else:
+        except TypeError:
             fg = None
         return fg
 
@@ -107,18 +111,22 @@ class FaceGenSTM:
         except AttributeError:
             return None
 
-    def copy (self, dst=None):
-        if dst is None: dst = FaceGenSTM.__new__(FaceGenSTM)
+    def copy (self, *, to=None):
+        if to is None: to = FaceGenSTM.__new__(FaceGenSTM)
         try:
-            dst.pixels0 = self.pixels0
-            dst.ts_deltas = self.ts_deltas
-            dst.ta_deltas = self.ta_deltas
+            to.pixels0 = self.pixels0
+            to.ts_deltas = self.ts_deltas
+            to.ta_deltas = self.ta_deltas
         except AttributeError:
             pass
-        dst.TS, dst.TA = self.TS, self.TA
-        dst.ts_data = self.ts_data.copy()
-        dst.ta_data = self.ta_data.copy()
-        return dst
+        to.TS, to.TA = self.TS, self.TA
+        to.ts_data = self.ts_data.copy()
+        to.ta_data = self.ta_data.copy()
+        return to
+
+    def copy_texture_data (self, src):
+        np.copyto(self.ts_data, src.ts_data)
+        np.copyto(self.ta_data, src.ta_data)
 
     def load_texture_model (self, bmp, egt, *, endian=None):
         if isinstance(bmp, str):
@@ -127,9 +135,9 @@ class FaceGenSTM:
         else:
             bmp = None
 
-        if isinstance(egt, str):
-            egt = FaceGenEGT(egt, endian=endian)
-        if isinstance(egt, FaceGenEGT):
+        try:
+            if not isinstance(egt, FaceGenEGT):
+                egt = FaceGenEGT(egt, endian=endian)
             self.tex_basis_version = egt.tex_basis_version
             self.TS = np.uint32(egt.TS)
             self.TA = np.uint32(egt.TA)
@@ -139,18 +147,18 @@ class FaceGenSTM:
             ta_deltas = [np.array(egt.ta_deltas[i])*egt.ta_scales[i] for i in range(egt.TA)]
             ta_deltas = np.transpose(ta_deltas,(1,2,0)).astype(np.float32)
             self.ta_deltas = ta_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TA)
-        else:
+        except TypeError:
             egt = None
 
         return bmp, egt
 
     def load_texture_data (self, fg, *, endian=None):
-        if isinstance(fg, str):
-            fg = FaceGenFG(fg, endian=endian)
-        if isinstance(fg, FaceGenFG):
+        try:
+            if not isinstance(fg, FaceGenFG):
+                fg = FaceGenFG(fg, endian=endian)
             self.ts_data = np.array(fg.ts_data, dtype=np.float32)/1000
             self.ta_data = np.array(fg.ta_data, dtype=np.float32)/1000
-        else:
+        except TypeError:
             fg = None
         return fg
 
@@ -160,11 +168,11 @@ class FaceGenSAM (FaceGenSSM, FaceGenSTM):
         FaceGenSSM.__init__(self, tri, egm, fg, endian=endian)
         FaceGenSTM.__init__(self, bmp, egt, fg, endian=endian)
 
-    def copy (self, dst=None):
-        if dst is None: dst = FaceGenSAM.__new__(FaceGenSAM)
-        FaceGenSSM.copy(self, dst)
-        FaceGenSTM.copy(self, dst)
-        return dst
+    def copy (self, *, to=None):
+        if to is None: to = FaceGenSAM.__new__(FaceGenSAM)
+        FaceGenSSM.copy(self, to=to)
+        FaceGenSTM.copy(self, to=to)
+        return to
 
     def load_model (self, tri=None, egm=None, bmp=None, egt=None, *, endian=None):
         self.load_shape_model(tri, egm, endian=endian)
@@ -173,6 +181,10 @@ class FaceGenSAM (FaceGenSSM, FaceGenSTM):
     def load_data (self, fg, *, endian=None):
         fg = self.load_shape_data(fg, endian=endian)
         self.load_texture_data(fg)
+
+    def copy_data (self, src):
+        self.copy_shape_data(src)
+        self.copy_texture_data(src)
 
     def save_data (self, fname, *, endian=None):
         fg = FaceGenFG()

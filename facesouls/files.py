@@ -68,7 +68,7 @@ class _FaceGenFile:
         elif isinstance(src, bytes):
             self.from_buffer(src, endian=endian)
         else:
-            pass
+            raise TypeError("FaceGenFile input must be path str or bytes buffer.")
 
     def load (self, fname, *, endian=None):
         with open(fname, 'rb') as f: b = f.read()
