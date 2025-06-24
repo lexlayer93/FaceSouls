@@ -42,8 +42,16 @@ class CharacterCreator (FaceGenerator):
         self.reset_sliders()
         self.tabs.clear()
         has_sequence = False
-        with open(fname, 'r') as f: # menu file
-            rows = f.read().split(';')
+        try:
+            with open(fname, 'r') as f: # menu file
+                rows = f.read().split(';')
+        except FileNotFoundError:
+            for key,slider in self.sliders.items():
+                tab = slider.tab
+                if tab not in self.tabs:
+                    self.tabs[tab] = list()
+                self.tabs[tab].append(key)
+        else:
             del rows[-1]
             for r in rows:
                 cells = list(map(lambda s: s.strip(), r.split(',')))
@@ -56,6 +64,7 @@ class CharacterCreator (FaceGenerator):
                     slider.label = label
                     slider.float_range = (float(float_min), float(float_max))
                     slider.int_range = (int(int_min), int(int_max))
+                    slider.tab = tab
                     if tab not in self.tabs:
                         self.tabs[tab] = list()
                     self.tabs[tab].append(key)
@@ -72,10 +81,11 @@ class CharacterCreator (FaceGenerator):
                     self.texture_asym_range = (float(cells[1]), float(cells[2]))
                 else:
                     pass
-        self.all_at_once = has_sequence
-        self.reset_values()
-        if not has_sequence:
-            self.sequence = [key for tab in self.tabs.values() for key in tab]
+        finally:
+            self.all_at_once = has_sequence
+            self.reset_values()
+            if not has_sequence:
+                self.sequence = [key for tab in self.tabs.values() for key in tab]
 
     def load_data (self, fname, *, endian=None):
         try:
@@ -97,7 +107,7 @@ class CharacterCreator (FaceGenerator):
                 del rows[-1]
                 for r in rows:
                     cells = list(map(lambda s: s.strip(), r.split(',')))
-                    key, value = cells
+                    key, value = cells[:2]
                     key, value = int(key), int(value)
                     slider = self.sliders[int(key)]
                     value = slider.int2float(value)
@@ -109,22 +119,23 @@ class CharacterCreator (FaceGenerator):
             self.update()
 
     def save_values (self, fname, *, sort=False):
-        output = ""
+        out = ""
         if not sort:
-            for key,slider in self.sliders.items():
-                if not slider.debug_only or key in self.sequence:
-                    output += f"{key:03d}, {slider.int_value};\n"
+            to_save = [slider for key,slider in self.sliders.items() if key in self.sequence]
         else:
-            for tab in self.tabs.values():
-                for key in tab:
-                    key = int(key)
-                    slider = self.sliders[key]
-                    output += f"{key:03d},{slider.int_value}; "
-                output += '\n'
-        with open(fname, 'w') as f:
-            f.write(output)
+            to_save = [self.sliders[key] for tab in self.tabs.values() for key in tab]
 
-    def export_as_obj (self, fname):
+        for slider in to_save:
+            key = slider.facegen_id
+            val = slider.int_value
+            lab = slider.label
+            tab = slider.tab
+            out += f"{key:03d}, {val}, {lab}, {tab};\n"
+
+        with open(fname, 'w') as f:
+            f.write(out)
+
+    def export_obj (self, fname):
         out = ""
         o1, o2 = 0, 0
         for i,sam in enumerate(self.models):
@@ -231,6 +242,7 @@ class CharacterSlider:
             self.label = self.debug_label
             self.float_range = _DFRANGES[k]
         self.int_range = (0, 255)
+        self.tab = _DFTABS[key//100]
 
     @property
     def available_range (self):
@@ -258,6 +270,12 @@ class CharacterSlider:
         float_min, float_max = self.float_range
         return round(255*(x - float_min)/(float_max - float_min))
 
+
+_DFTABS = {0: "[Generate]",
+           1: "[Shape Symmetry]",
+           2: "[Texture Symmetry]",
+           3: "[Shape Asymmetry]",
+           4: "[Texture Asymmetry]"}
 
 _DFRANGES = {10: (15.0, 60.0),
              20: (-4.0, 4.0),

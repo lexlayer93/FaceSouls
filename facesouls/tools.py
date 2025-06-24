@@ -235,7 +235,7 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
             weighted_error)
 
 
-def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
+def cc_target_shape (character_creator, shape_target, *, mode=0, **kwargs):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.tabs.values() for key in tab]
@@ -261,8 +261,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
     mfit = mtx[:,lgs_idx]
 
     # initial state before shape sliders
-    sam = cc.test_model()
-    sam.gs_data = cc.models[0].gs_data.copy()
+    sam = cc.models[0].copy()
     if cc.all_at_once:
         prekeys = (10,11,14,20,21,24,30,31,34)
         preseq = [key for key in sequence if key in prekeys]
@@ -293,7 +292,7 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
             return 2*residual(p).dot(cc.lgs_coeffs).dot(mfit)
 
     elif mode >= 2: # minimize vertex difference
-        v0 = sam.vertices_default.flatten()
+        v0 = sam.vertices0.flatten()
         deltas = sam.gs_deltas.reshape(-1, sam.gs_data.size)
         def residual (p):
             s = apply_seq(p)
@@ -330,7 +329,10 @@ def cc_target_shape (character_creator, shape_target, mode=0, **kwargs):
                                constraints=[lower_lim, upper_lim],
                                **kwargs)
 
-    solution = zip(lgs_avail, result.x)
+    solution = dict(zip(lgs_avail, result.x))
+    for key in lgs_seq:
+        value = solution[key] if key in solution else cc.values[key]
+        cc.set_control(key, value, sam)
+        cc.clip_data(sam)
 
-    return (list(solution),
-            result)
+    return (solution, sam.gs_data, result)
