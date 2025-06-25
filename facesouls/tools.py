@@ -1,18 +1,31 @@
-import os
+import os.path
 import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
-try:
-    import dlib
-    from trimesh.base import Trimesh
-    from trimesh.proximity import closest_point
-    from trimesh.registration import procrustes, icp, nricp_amberg, nricp_sumner
-    from trimesh.triangles import points_to_barycentric, barycentric_to_points
-    from trimesh.transformations import compose_matrix, decompose_matrix
-except ModuleNotFoundError:
-    pass
+import dlib
+from trimesh.base import Trimesh
+from trimesh.proximity import closest_point
+from trimesh.registration import procrustes, icp, nricp_amberg, nricp_sumner
+from trimesh.triangles import points_to_barycentric, barycentric_to_points
+from trimesh.transformations import compose_matrix, decompose_matrix
 
+
+__all__ = [
+    "facemesh_plot",
+    "facemesh_landmarks",
+    "facemesh_align",
+    "facemesh_register",
+    "facemesh_slice_depth",
+    "facemesh_slice_height",
+    "facemesh_nearest_vertex",
+    "facemesh_nearest_point",
+    "facemesh_nearest_barycentric",
+    "facemesh_from_ssm",
+    "ssm_target_points",
+    "cc_target_shape",
+    "cc_target_shape_legacy"
+    ]
 
 current_dir = os.path.dirname(__file__)
 DLIB_PREDICTOR_PATH = os.path.join(current_dir, "shape_predictor_68_face_landmarks.dat")
@@ -163,7 +176,7 @@ def facemesh_nearest_barycentric (mesh, points):
     return (tridx, barycentric)
 
 
-def facemesh_from_model (ssm):
+def facemesh_from_ssm (ssm):
     return Trimesh(ssm.vertices, ssm.triangles_only, process = False)
 
 
@@ -235,7 +248,8 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
             weighted_error)
 
 
-def cc_target_shape (character_creator, shape_target, *, mode=0, **kwargs):
+def cc_target_shape (character_creator, target_shape,
+                     *, preset=None, mode=0, maxiter=100, **kwargs):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.tabs.values() for key in tab]
@@ -261,46 +275,143 @@ def cc_target_shape (character_creator, shape_target, *, mode=0, **kwargs):
     mfit = mtx[:,lgs_idx]
 
     # initial state before shape sliders
-    sam = cc.models[0].copy()
+    if preset is None: preset = cc.preset
+    sam = preset.copy()
     if cc.all_at_once:
         prekeys = (10,11,14,20,21,24,30,31,34)
         preseq = [key for key in sequence if key in prekeys]
-        cc.set_shape_zero(sam)
-        for key in preseq:
-            value = cc.values[key]
-            cc.set_control(key, value, sam)
+    else:
+        preseq = []
+    for key in preseq:
+        value = cc.values[key]
+        cc.set_control(key, value, sam)
     s0 = Nt.dot(sam.gs_data)
 
-    # faster apply sequence, without clip
+    # faster sequence, with clip
+    def apply_seq (p):
+        return np.clip(s0 + mfit.dot(p), *cc.shape_sym_range)
+
+    smin, smax = cc.shape_sym_range
+    def in_range (p):
+        s = apply_seq(p)
+        onezero = np.where((s>=smin) & (s <=smax), 1.0, 0.0)
+        return np.diag(onezero)
+
+    if mode <= 0: # minimize shape difference
+        def residual (p):
+            s = apply_seq(p)
+            return s - target_shape
+        def jacobian (p):
+            return in_range(p).dot(mfit)
+
+    elif mode == 1: # minimize features difference
+        def residual (p):
+            s = apply_seq(p)
+            return np.dot(cc.lgs_coeffs, s - target_shape)
+        def jacobian (p):
+            return cc.lgs_coeffs.dot(in_range(p)).dot(mfit)
+
+    elif mode >= 2: # minimize vertex difference
+        deltas = sam.gs_deltas.reshape(-1, sam.gs_data.size)
+        def residual (p):
+            s = apply_seq(p)
+            return np.dot(deltas, s - target_shape)
+        def jacobian (p):
+            return deltas.dot(in_range(p)).dot(mfit)
+
+    # sliders bounds
+    ranges = np.array([cc.sliders[key].available_range for key in lgs_avail],
+                            dtype=np.float32)
+    ranges.sort(axis=1)
+
+    # initial guess
+    p0 = np.linalg.pinv(mfit).dot(target_shape-s0)
+    if (np.any(p0 < ranges[:,0]) or
+        np.any(p0 > ranges[:,1])):
+        p0 = np.zeros_like(p0, dtype=np.float32)
+
+    # optimization
+    kwargs.setdefault("max_nfev", maxiter)
+    result = optimize.least_squares(residual,
+                                    p0,
+                                    jac=jacobian,
+                                    bounds=(ranges[:,0],ranges[:,1]),
+                                    **kwargs)
+
+    solution = dict(zip(lgs_avail, result.x))
+    sam.gs_data = apply_seq(result.x)
+
+    for key in preseq:
+        solution[key] = cc.values[key]
+
+    result.nit = result.nfev
+    return (solution, sam.gs_data, result)
+
+
+def cc_target_shape_legacy (character_creator, target_shape,
+                            *,preset=None, mode=0, maxiter=100,**kwargs):
+    cc = character_creator
+    sequence = cc.sequence
+    available = [key for tab in cc.tabs.values() for key in tab]
+
+    # available should be <= sequence
+    if not set(available).issubset(set(sequence)):
+        available = [key for key in sequence if not cc.sliders[key].debug_only]
+
+    lgs_seq = [key for key in sequence if key//100 == 1]
+    lgs_avail = [key for key in available if key//100 == 1]
+    lgs_idx = [key % 100 for key in lgs_avail]
+
+    # cumulative effect of shape sliders
+    mtx = np.zeros_like(cc.lgs_coeffs.T)
+    I = np.eye(character_creator.GS)
+    Nt = np.copy(I)
+    for key in lgs_seq[::-1]:
+        idx = key % 100
+        c = cc.lgs_coeffs[idx,:].reshape(-1,1)
+        N = I - np.dot(c,c.T)
+        mtx[:,idx] = Nt.dot(c).reshape(-1)
+        Nt = Nt.dot(N)
+    mfit = mtx[:,lgs_idx]
+
+    # initial state before shape sliders
+    if preset is None: preset = cc.preset
+    sam = preset.copy()
+    if cc.all_at_once:
+        prekeys = (10,11,14,20,21,24,30,31,34)
+        preseq = [key for key in sequence if key in prekeys]
+    else:
+        preseq = []
+    for key in preseq:
+        value = cc.values[key]
+        cc.set_control(key, value, sam)
+    s0 = Nt.dot(sam.gs_data)
+
+    # faster sequence, without clip
     def apply_seq (p):
         return s0 + mfit.dot(p)
 
     if mode <= 0: # minimize shape difference
         def residual (p):
             s = apply_seq(p)
-            return s - shape_target
+            return s - target_shape
         def gradient (p):
-            return 2*residual(p).dot(mfit)
+            return residual(p).dot(mfit)
 
-    elif mode == 1: # minimize controls difference
+    elif mode == 1: # minimize features difference
         def residual (p):
             s = apply_seq(p)
-            q = np.dot(cc.lgs_coeffs, s)
-            qt = np.dot(cc.lgs_coeffs, shape_target)
-            return q-qt
+            return np.dot(cc.lgs_coeffs, s - target_shape)
         def gradient (p):
-            return 2*residual(p).dot(cc.lgs_coeffs).dot(mfit)
+            return residual(p).dot(cc.lgs_coeffs).dot(mfit)
 
     elif mode >= 2: # minimize vertex difference
-        v0 = sam.vertices0.flatten()
         deltas = sam.gs_deltas.reshape(-1, sam.gs_data.size)
         def residual (p):
             s = apply_seq(p)
-            v = v0 + np.dot(deltas, s)
-            vt = v0 + np.dot(deltas, shape_target)
-            return v-vt
+            return np.dot(deltas, s - target_shape)
         def gradient (p):
-            return 2*residual(p).dot(deltas).dot(mfit)
+            return residual(p).dot(deltas).dot(mfit)
 
     # avoid shape data saturation
     smin, smax = cc.shape_sym_range
@@ -313,7 +424,7 @@ def cc_target_shape (character_creator, shape_target, *, mode=0, **kwargs):
     ranges.sort(axis=1)
 
     # initial guess
-    p0 = np.linalg.pinv(mfit).dot(shape_target-s0)
+    p0 = np.linalg.pinv(mfit).dot(target_shape-s0)
     if (np.any(p0 < ranges[:,0]) or
         np.any(p0 > ranges[:,1]) or
         upper_lim["fun"](p0) < 0 or
@@ -322,7 +433,8 @@ def cc_target_shape (character_creator, shape_target, *, mode=0, **kwargs):
 
     # optimization
     kwargs.setdefault("method","SLSQP")
-    result = optimize.minimize(lambda p: np.sum(residual(p)**2),
+    kwargs.setdefault("options",{"maxiter":maxiter})
+    result = optimize.minimize(lambda p: 0.5*np.sum(residual(p)**2),
                                p0,
                                jac=gradient,
                                bounds=ranges,
@@ -330,9 +442,11 @@ def cc_target_shape (character_creator, shape_target, *, mode=0, **kwargs):
                                **kwargs)
 
     solution = dict(zip(lgs_avail, result.x))
-    for key in lgs_seq:
-        value = solution[key] if key in solution else cc.values[key]
-        cc.set_control(key, value, sam)
-        cc.clip_data(sam)
+    sam.gs_data = apply_seq(result.x)
+    sam.gs_data.clip(*cc.shape_sym_range, sam.gs_data)
 
+    for key in preseq:
+        solution[key] = cc.values[key]
+
+    result.cost = result.fun
     return (solution, sam.gs_data, result)

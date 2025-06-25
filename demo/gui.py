@@ -263,14 +263,15 @@ class CCMainFrame (tk.Frame):
         self.text_left.delete(1.0, tk.END)
         self.text_left.insert(tk.END, text)
 
+        fmt = ".6f"
         face = cc.models[0]
         text = "SYM. SHAPE DATA:"
         for i in range(cc.GS):
-            text += f"\n{i:02d}:({face.gs_data[i]:{fmt}})"
+            text += f"\n[{i:02d}]: {face.gs_data[i]:{fmt}}"
 
         text += "\n\nSYM. TEXTURE DATA:"
         for i in range(cc.TS):
-            text += f"\n{i:02d}:({face.ts_data[i]:{fmt}})"
+            text += f"\n[{i:02d}]: {face.ts_data[i]:{fmt}}"
         self.text_right.delete(1.0, tk.END)
         self.text_right.insert(tk.END, text)
 
@@ -336,21 +337,22 @@ class CCReplicateFG (tk.Toplevel):
 
     def find_replica (self):
         cc = self.master.character_creator
-        current_mode = self.combobox.current()
+        current_mode_idx = int(self.combobox.current())
+        current_mode_txt = self.combobox.get()
         current_iter = int(self.iterations.get())
         solution, data, info = cc_target_shape(cc,
                                                self.target.gs_data,
-                                               mode=current_mode,
-                                               options={"maxiter":current_iter})
+                                               mode=current_mode_idx,
+                                               maxiter=current_iter)
         self.solution = solution
         self.replica.gs_data = data
         self.canvas_replica.replot(self.replica)
+        text = info.message + f"\nIterations: {info.nit}"+\
+                f"\nError ({current_mode_txt.lower()}): {info.cost:.3g}"
         if info.success:
-            text = info.message + f"\nIterations: {info.nit}"
             tk.messagebox.showinfo("SUCCESS!", text, parent=self)
         else:
-            text = info.message
-            tk.messagebox.showwarning("FAILURE!", text, parent=self)
+            tk.messagebox.showwarning("FAILURE?", text, parent=self)
 
     def ask_load_target (self):
         path = tk.filedialog.askopenfilename(parent=self,

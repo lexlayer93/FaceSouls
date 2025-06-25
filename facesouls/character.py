@@ -1,5 +1,8 @@
 from .models import FaceGenerator, FaceGenSAM
 
+__all__ = [
+    "CharacterCreator"
+    ]
 
 class CharacterCreator (FaceGenerator):
     def __init__ (self, ctl, menu=None, models=None, *, preset=None, endian=None):
@@ -168,7 +171,7 @@ class CharacterCreator (FaceGenerator):
             for key in self.sequence:
                 value = self.values[key]
                 self.set_control(key, value, sam)
-                self.clip_data(sam)
+            self.clip_data(sam)
         else:
             self.clip_data(sam)
             for key in self.values:

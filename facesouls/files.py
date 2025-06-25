@@ -1,6 +1,15 @@
 import struct
 from dataclasses import dataclass
 
+__all__ = [
+    "FaceGenCTL",
+    "FaceGenEGM",
+    "FaceGenEGT",
+    "FaceGenTRI",
+    "FaceGenFG",
+    "FaceGenFIM"
+    ]
+
 def struct_endian (byteorder):
     if byteorder == "little":
         return '<'
@@ -59,7 +68,7 @@ class BinaryParser:
         pass
 
 
-class _FaceGenFile:
+class FaceGenFile:
     magic = None
 
     def __init__(self, src=None, *, endian=None):
@@ -68,7 +77,7 @@ class _FaceGenFile:
         elif isinstance(src, bytes):
             self.from_buffer(src, endian=endian)
         else:
-            raise TypeError("FaceGenFile input must be path str or bytes buffer.")
+            raise TypeError("FaceGenFile input must be str path or bytes buffer.")
 
     def load (self, fname, *, endian=None):
         with open(fname, 'rb') as f: b = f.read()
@@ -81,38 +90,54 @@ class _FaceGenFile:
         self._parse(parser)
 
 
-class FaceGenCTL (_FaceGenFile):
+@dataclass(init=False)
+class FaceGenCTL (FaceGenFile):
     magic = b"FRCTL001"
+    geo_basis_version: int
+    tex_basis_version: int
+    GS: int
+    GA: int
+    TS: int
+    TA: int
+    LGS: int
+    lgs_controls: list["FaceGenCTL.LinCtrl"]
+    LGA: int
+    lga_controls: list["FaceGenCTL.LinCtrl"]
+    LTS: int
+    lts_controls: list["FaceGenCTL.LinCtrl"]
+    LTA: int
+    lta_controls: list["FaceGenCTL.LinCtrl"]
+    races: dict[str, "FaceGenCTL.Race"]
 
     @dataclass(init=False)
     class LinCtrl:
-        coeff: list[float]
+        coeff: tuple[float,...]
         label: str
         label_len: int
-
-    @dataclass(init=False)
-    class PrtOffLinCtrl:
-        gs_coeff: list[float]
-        ts_coeff: list[float]
-        gs_offset: float
-        ts_offset: float
-
-    @dataclass(init=False)
-    class OffLinCtrl:
-        gs_coeff: list[float]
-        ts_coeff: list[float]
-        offset: float
 
     @dataclass(init=False)
     class Race:
         age_control: "FaceGenCTL.PrtOffLinCtrl"
         gnd_control: "FaceGenCTL.PrtOffLinCtrl"
         morph_controls: dict[str, "FaceGenCTL.OffLinCtrl"]
-        gs_mean: list[float]
-        ts_mean: list[float]
-        gs_density: list[float]
-        ts_density: list[float]
-        combined_density: list[float]
+        gs_mean: tuple[float,...]
+        ts_mean: tuple[float,...]
+        gs_density: tuple[float,...]
+        ts_density: tuple[float,...]
+        combined_density: tuple[float,...]
+
+    @dataclass(init=False)
+    class PrtOffLinCtrl:
+        gs_coeff: tuple[float,...]
+        ts_coeff: tuple[float,...]
+        gs_offset: float
+        ts_offset: float
+
+    @dataclass(init=False)
+    class OffLinCtrl:
+        gs_coeff: tuple[float,...]
+        ts_coeff: tuple[float,...]
+        offset: float
 
     def _parse (self, parser):
         self.geo_basis_version, self.tex_basis_version = parser.ulong_(2) # Geometry & Texture Basis Versions
@@ -190,8 +215,17 @@ class FaceGenCTL (_FaceGenFile):
             race.ts_density = parser.float_(self.TS*self.TS)
 
 
-class FaceGenEGM (_FaceGenFile):
+@dataclass(init=False)
+class FaceGenEGM (FaceGenFile):
     magic = b"FREGM002"
+    num_vertices: int
+    GS: int
+    GA: int
+    geo_basis_version: int
+    gs_scales: list[float]
+    gs_deltas: list[list[tuple[int,int,int]]]
+    ga_scales: list[float]
+    ga_deltas: list[list[tuple[int,int,int]]]
 
     def _parse (self, parser):
         self.num_vertices = parser.ulong_() # Number of vertices = V + K in TRI file
@@ -205,18 +239,26 @@ class FaceGenEGM (_FaceGenFile):
         for i in range(self.GS):
             self.gs_scales[i] = parser.float_()
             aux = parser.short_(3*self.num_vertices)
-            self.gs_deltas[i] = list(zip(*[iter(aux)]*3))
+            self.gs_deltas[i] = list(zip(*(iter(aux),)*3))
 
         self.ga_scales = [None] * self.GA
         self.ga_deltas = [ [None]*self.num_vertices for _ in range(self.GA) ]
         for i in range(self.GA):
             self.ga_scales[i] = parser.float_()
             aux = parser.short_(3*self.num_vertices)
-            self.ga_deltas[i] = list(zip(*[iter(aux)]*3))
+            self.ga_deltas[i] = list(zip(*(iter(aux),)*3))
 
 
-class FaceGenEGT (_FaceGenFile):
+@dataclass(init=False)
+class FaceGenEGT (FaceGenFile):
     magic = b"FREGT003"
+    image_height: int
+    image_width: int
+    TS: int
+    TA: int
+    tex_basis_version: int
+    ts_scales: list[float]
+    ts_deltas: list[list[tuple[int,int,int]]]
 
     def _parse (self, parser):
         self.image_height, self.image_width = parser.ulong_(2)
@@ -243,20 +285,25 @@ class FaceGenEGT (_FaceGenFile):
                 self.ta_deltas[i][j] = (aux[j], aux[j+npixels], aux[j+npixels*2])
 
 
-class FaceGenFIM (_FaceGenFile):
-    magic = b"FIMFF001"
-
-    def _parse (self, parser):
-        self.image_width, self.image_height = parser.ulong_(2)
-
-        parser.pad_(48) # Unused
-
-        aux = parser.float_(2*self.image_width*self.image_height)
-        self.image_uv = list(zip(*[iter(aux)]*2)) # image resampling coordinates
-
-
-class FaceGenTRI (_FaceGenFile):
+@dataclass(init=False)
+class FaceGenTRI (FaceGenFile):
     magic = b"FRTRI003"
+    num_vertices: int
+    num_triangles: int
+    num_quads: int
+    num_labelled_vertices: int
+    num_labelled_surface_points: int
+    num_uv: int
+    extension_info: int
+    num_labelled_difference_morphs: int
+    num_labelled_stat_morphs: int
+    num_stat_morph_vertices: int
+    vertices: list[tuple[float,float,float]]
+    triangles: list[tuple[int,int,int]]
+    quads: list[tuple[int,int,int,int]]
+    uv_vertices: list[tuple[float,float]]
+    uv_triangles: list[tuple[int,int,int]]
+    uv_quads: list[tuple[int,int,int,int]]
 
     def _parse (self, parser):
 
@@ -302,8 +349,41 @@ class FaceGenTRI (_FaceGenFile):
         return out
 
 
-class FaceGenFG(_FaceGenFile):
+@dataclass(init=False)
+class FaceGenFG(FaceGenFile):
     magic = b"FRFG0001"
+    geo_basis_version: int
+    tex_basis_version: int
+    GS: int
+    GA: int
+    TS: int
+    TA: int
+    detail_texture_flag: int
+    gs_data: list[int]
+    ga_data: list[int]
+    ts_data: list[int]
+    ta_data: list[int]
+    detail_image: bytes
+
+    def _parse (self, parser):
+        self.geo_basis_version, self.tex_basis_version = parser.ulong_(2) # Geometry & Texture Basis Versions
+        self.GS, self.GA, self.TS, self.TA  = parser.ulong_(4) # N of GS, GA, TS & TA modes
+
+        if parser.ulong_() != 0:
+            raise ValueError("Must be 0")
+
+        self.detail_texture_flag = parser.ulong_() # 0 if none, 1 if present
+
+        self.gs_data = list(parser.short_(self.GS)) # GS coeff x 1000
+        self.ga_data = list(parser.short_(self.GA)) # GA coeff x 1000
+        self.ts_data = list(parser.short_(self.TS)) # TS coeff x 1000
+        self.ta_data = list(parser.short_(self.TA)) # TA coeff x 1000
+
+        if self.detail_texture_flag:
+            nbytes = parser.ulong_()
+            self.detail_image = parser.bytes_(nbytes)
+        else:
+            self.detail_image = b''
 
     def save (self, filename, *, endian=None):
         endian = struct_endian(endian)
@@ -327,22 +407,18 @@ class FaceGenFG(_FaceGenFile):
             f.write(s)
             f.write(self.detail_image)
 
+
+@dataclass(init=False)
+class FaceGenFIM (FaceGenFile):
+    magic = b"FIMFF001"
+    image_width: int
+    image_height: int
+    image_uv: list[tuple[float,float]]
+
     def _parse (self, parser):
-        self.geo_basis_version, self.tex_basis_version = parser.ulong_(2) # Geometry & Texture Basis Versions
-        self.GS, self.GA, self.TS, self.TA  = parser.ulong_(4) # N of GS, GA, TS & TA modes
+        self.image_width, self.image_height = parser.ulong_(2)
 
-        if parser.ulong_() != 0:
-            raise ValueError("Must be 0")
+        parser.pad_(48) # Unused
 
-        self.detail_texture_flag = parser.ulong_() # 0 if none, 1 if present
-
-        self.gs_data = list(parser.short_(self.GS)) # GS coeff x 1000
-        self.ga_data = list(parser.short_(self.GA)) # GA coeff x 1000
-        self.ts_data = list(parser.short_(self.TS)) # TS coeff x 1000
-        self.ta_data = list(parser.short_(self.TA)) # TA coeff x 1000
-
-        if self.detail_texture_flag:
-            nbytes = parser.ulong_()
-            self.detail_image = parser.bytes_(nbytes)
-        else:
-            self.detail_image = b''
+        aux = parser.float_(2*self.image_width*self.image_height)
+        self.image_uv = list(zip(*(iter(aux))*2)) # image resampling coordinates

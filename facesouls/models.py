@@ -2,6 +2,12 @@ import numpy as np
 from PIL import Image
 from .files import *
 
+__all__ = [
+    "FaceGenSSM",
+    "FaceGenSTM",
+    "FaceGenSAM",
+    "FaceGenerator"
+    ]
 
 class FaceGenSSM:
     def __init__ (self, tri=None, egm=None, fg=None, *, endian=None):
@@ -15,10 +21,8 @@ class FaceGenSSM:
 
     @property
     def vertices (self):
-        try:
-            return self.vertices0 + self.gs_deltas.dot(self.gs_data) + self.ga_deltas.dot(self.ga_data)
-        except AttributeError:
-            return None
+        return self.vertices0 + self.gs_deltas.dot(self.gs_data) + self.ga_deltas.dot(self.ga_data)
+
 
     def copy (self, *, to=None):
         if to is None: to = FaceGenSSM.__new__(FaceGenSSM)
@@ -106,10 +110,7 @@ class FaceGenSTM:
 
     @property
     def pixels (self):
-        try:
-            return self.pixels0 + self.ts_deltas.dot(self.ts_data) + self.ta_deltas.dot(self.ta_data)
-        except AttributeError:
-            return None
+        return self.pixels0 + self.ts_deltas.dot(self.ts_data) + self.ta_deltas.dot(self.ta_data)
 
     def copy (self, *, to=None):
         if to is None: to = FaceGenSTM.__new__(FaceGenSTM)
