@@ -72,12 +72,12 @@ class FaceGenFile:
     magic = None
 
     def __init__(self, src=None, *, endian=None):
-        if isinstance(src, str):
-            self.load(src, endian=endian)
+        if src is None:
+            return
         elif isinstance(src, bytes):
             self.from_buffer(src, endian=endian)
         else:
-            raise TypeError("FaceGenFile input must be str path or bytes buffer.")
+            self.load(src, endian=endian)
 
     def load (self, fname, *, endian=None):
         with open(fname, 'rb') as f: b = f.read()

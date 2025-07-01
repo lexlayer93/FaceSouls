@@ -1,4 +1,5 @@
 from .models import FaceGenerator, FaceGenSAM
+from zipfile import is_zipfile, ZipFile
 
 __all__ = [
     "CharacterCreator"
@@ -6,6 +7,8 @@ __all__ = [
 
 class CharacterCreator (FaceGenerator):
     def __init__ (self, ctl, menu=None, models=None, *, preset=None, endian=None):
+        if not isinstance(ctl, bytes) and is_zipfile(ctl):
+            ctl, menu, models = zip_load(ctl)
         super().__init__(ctl, endian=endian)
         self.all_at_once = False
         self.sliders = dict()
@@ -61,20 +64,13 @@ class CharacterCreator (FaceGenerator):
         self.models[0].save_data(fname, endian=endian)
 
     def load_values (self, fname):
-        try:
-            with open(fname, 'r') as f:
-                rows = f.read().split(';')
-                del rows[-1]
-                for r in rows:
-                    cells = list(map(lambda s: s.strip(), r.split(',')))
-                    key, value = cells[:2]
-                    key, value = int(key), int(value)
-                    slider = self.sliders[int(key)]
-                    value = slider.int2float(value)
-                    self.values[key] = value
-        except FileNotFoundError:
-            pass
-        else:
+        csv = csv_load(fname)
+        for key, items in csv.items():
+            if isinstance(key, int):
+                value = int(items[0])
+                slider = self.sliders[key]
+                self.values[key] = slider.int2float(value)
+        if len(csv) != 0:
             self.all_at_once = True
             self.update()
 
@@ -107,58 +103,51 @@ class CharacterCreator (FaceGenerator):
             f.write(out)
         return out
 
-    def load_menu (self, src):
+    def load_menu (self, src=None):
         self.reset_sliders()
         self.tabs.clear()
         has_sequence = False
 
-        if isinstance(src, str):
-            try:
-                with open(src, 'r') as f:
-                    content = f.read()
-            except FileNotFoundError:
-                content = None
-        elif isinstance(src, bytes):
-            content = src.decode()
+        if src is not None:
+            menu = csv_load(src)
+        else:
+            menu = dict()
 
-        if content is None:
+        for key, items in menu.items():
+            if isinstance(key, int):
+                tab, label, float_min, float_max, int_min, int_max = items
+                slider = self.sliders[key]
+                slider.debug_only = False
+                slider.label = label
+                slider.float_range = (float(float_min), float(float_max))
+                slider.int_range = (int(int_min), int(int_max))
+                slider.tab = tab
+                if tab not in self.tabs:
+                    self.tabs[tab] = list()
+                self.tabs[tab].append(key)
+            elif key=="###":
+                self.sequence = [int(k) for k in items]
+                has_sequence = True
+            elif key=="##1":
+                gs_min, gs_max = items
+                self.shape_sym_range = (float(gs_min), float(gs_max))
+            elif key=="##2":
+                ts_min, ts_max = items
+                self.texture_sym_range = (float(ts_min), float(ts_max))
+            elif key=="##3":
+                ga_min, ga_max = items
+                self.shape_asym_range = (float(ga_min), float(ga_max))
+            elif key=="##4":
+                ta_min, ta_max = items
+                self.texture_asym_range = (float(ta_min), float(ta_max))
+
+        if len(self.tabs) == 0:
             for key,slider in self.sliders.items():
                 tab = slider.tab
                 if tab not in self.tabs:
                     self.tabs[tab] = list()
                 self.tabs[tab].append(key)
-        else:
-            content = content.rstrip()
-            rows = content.split(';')
-            del rows[-1]
-            for r in rows:
-                cells = list(map(lambda s: s.strip(), r.split(',')))
-                key = cells[0]
-                if key[0] != '#':
-                    key = int(key)
-                    tab, label, float_min, float_max, int_min, int_max = cells[1:]
-                    slider = self.sliders[key]
-                    slider.debug_only = False
-                    slider.label = label
-                    slider.float_range = (float(float_min), float(float_max))
-                    slider.int_range = (int(int_min), int(int_max))
-                    slider.tab = tab
-                    if tab not in self.tabs:
-                        self.tabs[tab] = list()
-                    self.tabs[tab].append(key)
-                elif key=="###":
-                    self.sequence = [int(c) for c in cells[1:]]
-                    has_sequence = True
-                elif key=="##1":
-                    self.shape_sym_range = (float(cells[1]), float(cells[2]))
-                elif key=="##2":
-                    self.texture_sym_range = (float(cells[1]), float(cells[2]))
-                elif key=="##3":
-                    self.shape_asym_range = (float(cells[1]), float(cells[2]))
-                elif key=="##4":
-                    self.texture_asym_range = (float(cells[1]), float(cells[2]))
-                else:
-                    pass
+
         self.all_at_once = has_sequence
         self.reset_values()
         if not has_sequence:
@@ -277,6 +266,52 @@ class CharacterSlider:
     def float2int (self, x):
         float_min, float_max = self.float_range
         return round(255*(x - float_min)/(float_max - float_min))
+
+
+def csv_load (src):
+    out = dict()
+
+    if isinstance(src, bytes):
+        content = src.decode()
+    else:
+        with open(src, 'r') as f:
+            content = f.read()
+
+    # Header comments
+    while content.lstrip().startswith('#'):
+        end = content.find('\n')
+        if end > 0:
+            content = content[end+1:]
+        else:
+            return
+
+    rows = content.split(';')
+    for r in rows[:-1]:
+        cells = tuple(map(lambda s: s.strip(), r.split(',')))
+        key = cells[0]
+        try:
+            out[int(key)] = cells[1:]
+        except ValueError:
+            out[key] = cells[1:]
+
+    return out
+
+
+def zip_load (src):
+    with ZipFile(src, 'r') as zf:
+        lof = sorted(zf.namelist())
+        ctl_list = [f for f in lof if f.endswith(".ctl")]
+        csv_list = [f for f in lof if f.endswith(".csv")]
+        tri_list = [f for f in lof if f.endswith(".tri")]
+        egm_list = [f for f in lof if f.endswith(".egm")]
+        ctl = zf.open(ctl_list[0]).read()
+        menu = zf.open(csv_list[0]).read()
+        models = list()
+        for tri,egm in zip(tri_list, egm_list):
+            tri = zf.open(tri).read()
+            egm = zf.open(egm).read()
+            models.append((tri,egm))
+    return ctl, menu, models
 
 
 _DFTABS = {0: "[Generate]",

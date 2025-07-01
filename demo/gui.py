@@ -21,21 +21,7 @@ class CharacterCreatorTk (tk.Tk):
                 title="Open...",
                 filetypes=[("Character Creator files","*.zip")],
                 defaultextension=".zip")
-            with ZipFile(path, 'r') as zf:
-                lof = sorted(zf.namelist())
-                ctl_list = [f for f in lof if f.endswith(".ctl")]
-                csv_list = [f for f in lof if f.endswith(".csv")]
-                tri_list = [f for f in lof if f.endswith(".tri")]
-                ctl = zf.open(ctl_list[0]).read()
-                csv = zf.open(csv_list[0]).read()
-                models = list()
-                for tri in tri_list:
-                    basename = tri.split('.',1)[0]
-                    egm = basename + ".egm"
-                    tri = zf.open(tri).read()
-                    egm = zf.open(egm).read()
-                    models.append((tri,egm))
-            self.character_creator = CharacterCreator(ctl, csv, models)
+            self.character_creator = CharacterCreator(path)
 
         editor = CCMainFrame(self)
         editor.pack(fill=tk.BOTH, expand=True)

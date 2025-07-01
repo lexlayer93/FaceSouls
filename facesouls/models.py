@@ -66,7 +66,7 @@ class FaceGenSSM:
             triangles2 = np.delete(self.uv_quads, 1, axis=1)
             triangles3 = np.delete(self.uv_quads, 3, axis=1)
             self.uv_triangles_only = np.concatenate((triangles1, triangles2, triangles3), axis=0)
-        except TypeError:
+        except:
             tri = None
 
         try:
@@ -79,7 +79,7 @@ class FaceGenSSM:
             self.gs_deltas = np.transpose(gs_deltas, (1,2,0)).astype(np.float32)
             ga_deltas = [np.array(egm.ga_deltas[i])*egm.ga_scales[i] for i in range(egm.GA)]
             self.ga_deltas = np.transpose(ga_deltas, (1,2,0)).astype(np.float32)
-        except TypeError:
+        except:
             egm = None
 
         return tri, egm
@@ -90,7 +90,7 @@ class FaceGenSSM:
                 fg = FaceGenFG(fg, endian=endian)
             self.gs_data = np.array(fg.gs_data, dtype=np.float32)/1000
             self.ga_data = np.array(fg.ga_data, dtype=np.float32)/1000
-        except TypeError:
+        except:
             fg = None
         return fg
 
@@ -148,7 +148,7 @@ class FaceGenSTM:
             ta_deltas = [np.array(egt.ta_deltas[i])*egt.ta_scales[i] for i in range(egt.TA)]
             ta_deltas = np.transpose(ta_deltas,(1,2,0)).astype(np.float32)
             self.ta_deltas = ta_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TA)
-        except TypeError:
+        except:
             egt = None
 
         return bmp, egt
@@ -159,7 +159,7 @@ class FaceGenSTM:
                 fg = FaceGenFG(fg, endian=endian)
             self.ts_data = np.array(fg.ts_data, dtype=np.float32)/1000
             self.ta_data = np.array(fg.ta_data, dtype=np.float32)/1000
-        except TypeError:
+        except:
             fg = None
         return fg
 
