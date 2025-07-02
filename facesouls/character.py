@@ -277,7 +277,7 @@ def csv_load (src):
         with open(src, 'r') as f:
             content = f.read()
 
-    rows = content.split(';')
+    rows = list(map(lambda s: s.strip(), content.split(';')))
     for r in rows[:-1]:
         if r.startswith("# "): continue
         cells = tuple(map(lambda s: s.strip(), r.split(',')))
