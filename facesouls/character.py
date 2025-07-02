@@ -125,19 +125,19 @@ class CharacterCreator (FaceGenerator):
                 if tab not in self.tabs:
                     self.tabs[tab] = list()
                 self.tabs[tab].append(key)
-            elif key=="###":
+            elif key==">>>":
                 self.sequence = [int(k) for k in items]
                 has_sequence = True
-            elif key=="##1":
+            elif key==">1<":
                 gs_min, gs_max = items
                 self.shape_sym_range = (float(gs_min), float(gs_max))
-            elif key=="##2":
+            elif key==">2<":
                 ts_min, ts_max = items
                 self.texture_sym_range = (float(ts_min), float(ts_max))
-            elif key=="##3":
+            elif key==">3<":
                 ga_min, ga_max = items
                 self.shape_asym_range = (float(ga_min), float(ga_max))
-            elif key=="##4":
+            elif key==">4<":
                 ta_min, ta_max = items
                 self.texture_asym_range = (float(ta_min), float(ta_max))
 
@@ -281,10 +281,10 @@ def csv_load (src):
     for r in rows[:-1]:
         if r.startswith("# "): continue
         cells = tuple(map(lambda s: s.strip(), r.split(',')))
-        key = cells[0]
-        try:
+        key = str(cells[0])
+        if key.isdigit():
             out[int(key)] = cells[1:]
-        except ValueError:
+        else:
             out[key] = cells[1:]
 
     return out
