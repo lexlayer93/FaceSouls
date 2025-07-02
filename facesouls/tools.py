@@ -275,16 +275,16 @@ def cc_target_shape (character_creator, target_shape,
     mfit = mtx[:,lgs_idx]
 
     # initial state before shape sliders
-    if preset is None: preset = cc.preset
-    sam = preset.copy()
+    sam = cc.models[0].copy()
     if cc.all_at_once:
         prekeys = (10,11,14,20,21,24,30,31,34)
         preseq = [key for key in sequence if key in prekeys]
+        sam.copy_data(cc.preset)
+        for key in preseq:
+            value = cc.values[key]
+            cc.set_control(key, value, sam)
     else:
         preseq = []
-    for key in preseq:
-        value = cc.values[key]
-        cc.set_control(key, value, sam)
     s0 = Nt.dot(sam.gs_data)
 
     # faster sequence, with clip

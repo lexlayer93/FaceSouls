@@ -11,18 +11,20 @@ __all__ = [
 
 class FaceGenSSM:
     def __init__ (self, tri=None, egm=None, fg=None, *, endian=None):
-        self.load_shape_model(tri, egm, endian=endian)
-        fg = self.load_shape_data(fg, endian=endian)
-        if fg is None:
-            if not hasattr(self, "GS"): self.GS = 50
-            if not hasattr(self, "GA"): self.GA = 30
+        if tri is not None and egm is not None:
+            self.load_shape_model(tri, egm, endian=endian)
+        else:
+            self.GS = 50
+            self.GA = 30
+        if fg is not None:
+            self.load_shape_data(fg, endian=endian)
+        else:
             self.gs_data = np.zeros(self.GS, dtype=np.float32)
             self.ga_data = np.zeros(self.GA, dtype=np.float32)
 
     @property
     def vertices (self):
         return self.vertices0 + self.gs_deltas.dot(self.gs_data) + self.ga_deltas.dot(self.ga_data)
-
 
     def copy (self, *, to=None):
         if to is None: to = FaceGenSSM.__new__(FaceGenSSM)
@@ -49,49 +51,44 @@ class FaceGenSSM:
         np.copyto(self.ga_data, src.ga_data)
 
     def load_shape_model (self, tri, egm, *, endian=None):
-        try:
-            if not isinstance(tri, FaceGenTRI):
-                tri = FaceGenTRI(tri, endian=endian)
-            self.vertices0 = np.array(tri.vertices, dtype=np.float32)
-            self.triangles = np.array(tri.triangles, dtype=np.uint32)
-            self.quads = np.array(tri.quads, dtype=np.uint32)
+        if not isinstance(tri, FaceGenTRI):
+            tri = FaceGenTRI(tri, endian=endian)
+        self.vertices0 = np.array(tri.vertices, dtype=np.float32)
+        self.triangles = np.array(tri.triangles, dtype=np.uint32)
+        self.quads = np.array(tri.quads, dtype=np.uint32)
+        self.uv_vertices = np.array(tri.uv_vertices, dtype=np.float32)
+        self.uv_triangles = np.array(tri.uv_triangles, dtype=np.uint32)
+        self.uv_quads = np.array(tri.uv_quads, dtype=np.uint32)
+        if tri.num_quads > 0:
             triangles1 = self.triangles
             triangles2 = np.delete(self.quads, 1, axis=1)
             triangles3 = np.delete(self.quads, 3, axis=1)
             self.triangles_only = np.concatenate((triangles1, triangles2, triangles3), axis=0)
-            self.uv_vertices = np.array(tri.uv_vertices, dtype=np.float32)
-            self.uv_triangles = np.array(tri.uv_triangles, dtype=np.uint32)
-            self.uv_quads = np.array(tri.uv_quads, dtype=np.uint32)
             triangles1 = self.uv_triangles
             triangles2 = np.delete(self.uv_quads, 1, axis=1)
             triangles3 = np.delete(self.uv_quads, 3, axis=1)
             self.uv_triangles_only = np.concatenate((triangles1, triangles2, triangles3), axis=0)
-        except:
-            tri = None
+        else:
+            self.triangles_only = self.triangles
+            self.uv_triangles_only = self.uv_triangles
 
-        try:
-            if not isinstance(egm, FaceGenEGM):
-                egm = FaceGenEGM(egm, endian=endian)
-            self.geo_basis_version = egm.geo_basis_version
-            self.GS = np.uint32(egm.GS)
-            self.GA = np.uint32(egm.GA)
-            gs_deltas = [np.array(egm.gs_deltas[i])*egm.gs_scales[i] for i in range(egm.GS)]
-            self.gs_deltas = np.transpose(gs_deltas, (1,2,0)).astype(np.float32)
-            ga_deltas = [np.array(egm.ga_deltas[i])*egm.ga_scales[i] for i in range(egm.GA)]
-            self.ga_deltas = np.transpose(ga_deltas, (1,2,0)).astype(np.float32)
-        except:
-            egm = None
+        if not isinstance(egm, FaceGenEGM):
+            egm = FaceGenEGM(egm, endian=endian)
+        self.geo_basis_version = egm.geo_basis_version
+        self.GS = np.uint32(egm.GS)
+        self.GA = np.uint32(egm.GA)
+        gs_deltas = [np.array(egm.gs_deltas[i])*egm.gs_scales[i] for i in range(egm.GS)]
+        self.gs_deltas = np.transpose(gs_deltas, (1,2,0)).astype(np.float32)
+        ga_deltas = [np.array(egm.ga_deltas[i])*egm.ga_scales[i] for i in range(egm.GA)]
+        self.ga_deltas = np.transpose(ga_deltas, (1,2,0)).astype(np.float32)
 
         return tri, egm
 
     def load_shape_data (self, fg, *, endian=None):
-        try:
-            if not isinstance(fg, FaceGenFG):
-                fg = FaceGenFG(fg, endian=endian)
-            self.gs_data = np.array(fg.gs_data, dtype=np.float32)/1000
-            self.ga_data = np.array(fg.ga_data, dtype=np.float32)/1000
-        except:
-            fg = None
+        if not isinstance(fg, FaceGenFG):
+            fg = FaceGenFG(fg, endian=endian)
+        self.gs_data = np.array(fg.gs_data, dtype=np.float32)/1000
+        self.ga_data = np.array(fg.ga_data, dtype=np.float32)/1000
         return fg
 
     def dump_obj (self, *args):
@@ -100,11 +97,14 @@ class FaceGenSSM:
 
 class FaceGenSTM:
     def __init__ (self, bmp=None, egt=None, fg=None, *, endian=None):
-        self.load_texture_model(bmp, egt, endian=endian)
-        fg = self.load_texture_data(fg, endian=endian)
-        if fg is None:
-            if not hasattr(self, "TS"): self.TS = 50
-            if not hasattr(self, "TA"): self.TA = 0
+        if bmp is not None and egt is not None:
+            self.load_texture_model(bmp, egt, endian=endian)
+        else:
+            self.TS = 50
+            self.TA = 0
+        if fg is not None:
+            self.load_texture_data(fg, endian=endian)
+        else:
             self.ts_data = np.zeros(self.TS, dtype=np.float32)
             self.ta_data = np.zeros(self.TA, dtype=np.float32)
 
@@ -130,37 +130,29 @@ class FaceGenSTM:
         np.copyto(self.ta_data, src.ta_data)
 
     def load_texture_model (self, bmp, egt, *, endian=None):
-        if isinstance(bmp, str):
-            img = Image.open(bmp)
-            self.pixels0 = np.asarray(img, dtype=np.float32)
-        else:
-            bmp = None
+        img = Image.open(bmp)
+        self.pixels0 = np.asarray(img, dtype=np.float32)
 
-        try:
-            if not isinstance(egt, FaceGenEGT):
-                egt = FaceGenEGT(egt, endian=endian)
-            self.tex_basis_version = egt.tex_basis_version
-            self.TS = np.uint32(egt.TS)
-            self.TA = np.uint32(egt.TA)
-            ts_deltas = [np.array(egt.ts_deltas[i])*egt.ts_scales[i] for i in range(egt.TS)]
-            ts_deltas = np.transpose(ts_deltas,(1,2,0)).astype(np.float32)
-            self.ts_deltas = ts_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TS)
-            ta_deltas = [np.array(egt.ta_deltas[i])*egt.ta_scales[i] for i in range(egt.TA)]
-            ta_deltas = np.transpose(ta_deltas,(1,2,0)).astype(np.float32)
-            self.ta_deltas = ta_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TA)
-        except:
-            egt = None
+        if not isinstance(egt, FaceGenEGT):
+            egt = FaceGenEGT(egt, endian=endian)
+        self.tex_basis_version = egt.tex_basis_version
+        self.TS = np.uint32(egt.TS)
+        self.TA = np.uint32(egt.TA)
+        ts_deltas = [np.array(egt.ts_deltas[i])*egt.ts_scales[i] for i in range(egt.TS)]
+        ts_deltas = np.transpose(ts_deltas,(1,2,0)).astype(np.float32)
+        self.ts_deltas = ts_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TS)
+        ta_deltas = [np.array(egt.ta_deltas[i])*egt.ta_scales[i] for i in range(egt.TA)]
+        ta_deltas = np.transpose(ta_deltas,(1,2,0)).astype(np.float32)
+        self.ta_deltas = ta_deltas.reshape(egt.image_height, egt.image_width, 3, egt.TA)
+        egt = None
 
         return bmp, egt
 
     def load_texture_data (self, fg, *, endian=None):
-        try:
-            if not isinstance(fg, FaceGenFG):
-                fg = FaceGenFG(fg, endian=endian)
-            self.ts_data = np.array(fg.ts_data, dtype=np.float32)/1000
-            self.ta_data = np.array(fg.ta_data, dtype=np.float32)/1000
-        except:
-            fg = None
+        if not isinstance(fg, FaceGenFG):
+            fg = FaceGenFG(fg, endian=endian)
+        self.ts_data = np.array(fg.ts_data, dtype=np.float32)/1000
+        self.ta_data = np.array(fg.ta_data, dtype=np.float32)/1000
         return fg
 
 

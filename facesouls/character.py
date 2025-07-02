@@ -8,7 +8,7 @@ __all__ = [
 class CharacterCreator (FaceGenerator):
     def __init__ (self, ctl, menu=None, models=None, *, preset=None, endian=None):
         if not isinstance(ctl, bytes) and is_zipfile(ctl):
-            ctl, menu, models = zip_load(ctl)
+            endian, ctl, menu, models = zip_load(ctl)
         super().__init__(ctl, endian=endian)
         self.all_at_once = False
         self.sliders = dict()
@@ -24,7 +24,7 @@ class CharacterCreator (FaceGenerator):
         if models is None:
             self.models = [self.test_model()]
         else:
-            self.load_models(*models)
+            self.load_models(*models, endian=endian)
             self.sync_models()
 
         if preset is not None: # if None, should be zero
@@ -277,16 +277,9 @@ def csv_load (src):
         with open(src, 'r') as f:
             content = f.read()
 
-    # Header comments
-    while content.lstrip().startswith('#'):
-        end = content.find('\n')
-        if end > 0:
-            content = content[end+1:]
-        else:
-            return
-
     rows = content.split(';')
     for r in rows[:-1]:
+        if r.startswith("# "): continue
         cells = tuple(map(lambda s: s.strip(), r.split(',')))
         key = cells[0]
         try:
@@ -298,12 +291,14 @@ def csv_load (src):
 
 
 def zip_load (src):
+    endian = "big" if src.endswith("be") else "little"
     with ZipFile(src, 'r') as zf:
         lof = sorted(zf.namelist())
-        ctl_list = [f for f in lof if f.endswith(".ctl")]
+        end_ext = "be" if endian=="big" else ""
         csv_list = [f for f in lof if f.endswith(".csv")]
-        tri_list = [f for f in lof if f.endswith(".tri")]
-        egm_list = [f for f in lof if f.endswith(".egm")]
+        ctl_list = [f for f in lof if f.endswith(".ctl"+end_ext)]
+        tri_list = [f for f in lof if f.endswith(".tri"+end_ext)]
+        egm_list = [f for f in lof if f.endswith(".egm"+end_ext)]
         ctl = zf.open(ctl_list[0]).read()
         menu = zf.open(csv_list[0]).read()
         models = list()
@@ -311,7 +306,7 @@ def zip_load (src):
             tri = zf.open(tri).read()
             egm = zf.open(egm).read()
             models.append((tri,egm))
-    return ctl, menu, models
+    return endian, ctl, menu, models
 
 
 _DFTABS = {0: "[Generate]",

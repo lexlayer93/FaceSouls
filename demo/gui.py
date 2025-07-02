@@ -19,7 +19,7 @@ class CharacterCreatorTk (tk.Tk):
         if self.character_creator is None:
             path = tk.filedialog.askopenfilename(parent=self,
                 title="Open...",
-                filetypes=[("Character Creator files","*.zip")],
+                filetypes=[("Character Creator files","*.zip *.zipbe")],
                 defaultextension=".zip")
             self.character_creator = CharacterCreator(path)
 

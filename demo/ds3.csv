@@ -1,3 +1,5 @@
+# Dark Souls 3 Character Creator Menu;
+# ID, tab, label, debug min, debug max, gui min, gui max;
 010, Features, Apparent Age, 15, 60, 0, 255;
 020, Features, Facial Aesthetic, -4, 4, 0, 255;
 030, Features, Form Emphasis, 0, 2, 0, 255;
@@ -90,5 +92,5 @@
 231, 232, 233, 234, 235, 230, 206,
 207, 208, 218, 219, 220, 221,
 229, 228, 225, 226, 227;
-##1, -7.14, 7.14;
+##1, -7.142857552, 7.142857552;
 ##2, -17, 17;
