@@ -1,5 +1,5 @@
-# Demon's Souls Character Creator Menu;
-# ID, tab, label, debug min, debug max, gui min, gui max;
+# Demon's Souls Character Creator Menu
+# ID, tab, label, debug min, debug max, gui min, gui max
 010, Customize, Age, 15.0, 60.0, 0, 255;
 020, Customize, Gender, -4.0, 4.0, 0, 255;
 119, General:Shape, Nose Size, -10.0, 10.0, 32, 223;

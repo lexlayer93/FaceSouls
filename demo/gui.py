@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from facesouls.character import CharacterCreator
 from facesouls.tools import facemesh_plot, cc_target_shape
-from zipfile import ZipFile
 
 
 class CharacterCreatorTk (tk.Tk):

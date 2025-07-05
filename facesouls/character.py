@@ -29,7 +29,6 @@ class CharacterCreator (FaceGenerator):
 
         if preset is not None: # if None, should be zero
             self.load_data(preset, endian=endian)
-        self.preset = self.models[0].copy()
 
         self.load_menu(menu) # sets all_at_once, updates models...
 
@@ -77,7 +76,7 @@ class CharacterCreator (FaceGenerator):
     def save_values (self, fname, *, sort=False):
         out = ""
         if not sort:
-            to_save = [slider for key,slider in self.sliders.items() if key in self.sequence]
+            to_save = [slider for key,slider in self.sliders.items() if not slider.debug_only]
         else:
             to_save = [self.sliders[key] for tab in self.tabs.values() for key in tab]
 
@@ -156,7 +155,7 @@ class CharacterCreator (FaceGenerator):
     def update (self):
         sam = self.models[0]
         if self.all_at_once:
-            sam.copy_data(self.preset)
+            self.set_zero(sam)
             for key in self.sequence:
                 value = self.values[key]
                 self.set_control(key, value, sam)
@@ -166,8 +165,8 @@ class CharacterCreator (FaceGenerator):
             for key in self.values:
                 self.values[key] = self.get_control(key, sam)
 
-    def toggle_sequence (self, flag=None):
-        if self.all_at_once == flag:
+    def toggle_sequence (self, new=None):
+        if self.all_at_once == new:
             return
         self.all_at_once = not self.all_at_once
         self.update()
@@ -277,9 +276,18 @@ def csv_load (src):
         with open(src, 'r') as f:
             content = f.read()
 
+    # header comments
+    content = content.lstrip()
+    while content.startswith('#'):
+        endl = content.find('\n')
+        content = content[endl+1:].lstrip()
+
+    # rows separated by ;
     rows = list(map(lambda s: s.strip(), content.split(';')))
-    for r in rows[:-1]:
-        if r.startswith("# "): continue
+    rows = [r for r in rows if len(r)>0]
+
+    # cells separated by ,
+    for r in rows:
         cells = tuple(map(lambda s: s.strip(), r.split(',')))
         key = str(cells[0])
         if key.isdigit():
@@ -291,21 +299,32 @@ def csv_load (src):
 
 
 def zip_load (src):
-    endian = "big" if src.endswith("be") else "little"
     with ZipFile(src, 'r') as zf:
         lof = sorted(zf.namelist())
-        end_ext = "be" if endian=="big" else ""
-        csv_list = [f for f in lof if f.endswith(".csv")]
-        ctl_list = [f for f in lof if f.endswith(".ctl"+end_ext)]
-        tri_list = [f for f in lof if f.endswith(".tri"+end_ext)]
-        egm_list = [f for f in lof if f.endswith(".egm"+end_ext)]
+        lof = [tuple(f.rsplit('.',1)) for f in lof]
+        csv_list = ['.'.join(f) for f in lof if f[-1].startswith("csv")]
+        ctl_list = ['.'.join(f) for f in lof if f[-1].startswith("ctl")]
+        tri_list = ['.'.join(f) for f in lof if f[-1].startswith("tri")]
+        egm_list = ['.'.join(f) for f in lof if f[-1].startswith("egm")]
         ctl = zf.open(ctl_list[0]).read()
         menu = zf.open(csv_list[0]).read()
+
+        # tri, egm pairs should have the same name
         models = list()
         for tri,egm in zip(tri_list, egm_list):
             tri = zf.open(tri).read()
             egm = zf.open(egm).read()
             models.append((tri,egm))
+
+        # catch endianness from facegen files extensions
+        fg_ext = [f[-1] for f in lof if f[-1].startswith(("ctl","tri","egm"))]
+        if all(ext.endswith("be") for ext in fg_ext):
+            endian = "big"
+        elif all(ext.endswith("le") for ext in fg_ext):
+            endian = "little"
+        else:
+            endian = None
+
     return endian, ctl, menu, models
 
 

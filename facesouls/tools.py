@@ -249,7 +249,7 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
 
 
 def cc_target_shape (character_creator, target_shape,
-                     *, preset=None, mode=0, maxiter=100, **kwargs):
+                     *, mode=0, maxiter=100, **kwargs):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.tabs.values() for key in tab]
@@ -277,9 +277,8 @@ def cc_target_shape (character_creator, target_shape,
     # initial state before shape sliders
     sam = cc.models[0].copy()
     if cc.all_at_once:
-        prekeys = (10,11,14,20,21,24,30,31,34)
-        preseq = [key for key in sequence if key in prekeys]
-        sam.copy_data(cc.preset)
+        preseq = [key for key in sequence if key < 100]
+        cc.set_zero(sam)
         for key in preseq:
             value = cc.values[key]
             cc.set_control(key, value, sam)
@@ -349,7 +348,7 @@ def cc_target_shape (character_creator, target_shape,
 
 
 def cc_target_shape_legacy (character_creator, target_shape,
-                            *,preset=None, mode=0, maxiter=100,**kwargs):
+                            *, mode=0, maxiter=100,**kwargs):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.tabs.values() for key in tab]
@@ -375,16 +374,14 @@ def cc_target_shape_legacy (character_creator, target_shape,
     mfit = mtx[:,lgs_idx]
 
     # initial state before shape sliders
-    if preset is None: preset = cc.preset
-    sam = preset.copy()
+    sam = cc.models[0].copy()
     if cc.all_at_once:
-        prekeys = (10,11,14,20,21,24,30,31,34)
-        preseq = [key for key in sequence if key in prekeys]
+        preseq = [key for key in sequence if key < 100]
+        for key in preseq:
+            value = cc.values[key]
+            cc.set_control(key, value, sam)
     else:
         preseq = []
-    for key in preseq:
-        value = cc.values[key]
-        cc.set_control(key, value, sam)
     s0 = Nt.dot(sam.gs_data)
 
     # faster sequence, without clip
