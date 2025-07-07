@@ -26,10 +26,6 @@ class CharacterCreatorTk (tk.Tk):
         editor.pack(fill=tk.BOTH, expand=True)
         self.mainframe = editor
 
-        repfg = CCReplicateFG(self)
-        repfg.withdraw()
-        self.top_repfg = repfg
-
         menubar = CCMainMenu(self)
         self.config(menu=menubar)
         self.mainmenu = menubar
@@ -78,13 +74,8 @@ class CCMainMenu (tk.Menu):
                                      )
         _load_menu.entryconfig(1 if cc.all_at_once else 0, state="disabled")
 
-        tools_menu = tk.Menu(self, tearoff=0)
-        tools_menu.add_command(label="FG Replication",
-                               command=parent.top_repfg.deiconify)
-
         self.add_cascade(label="File", menu=file_menu)
-        self.add_cascade(label="Options", menu=options_menu)
-        self.add_cascade(label="Tools", menu=tools_menu)
+        self.add_cascade(label="Settings", menu=options_menu)
 
     def ask_load_values (self):
         cc = self.master.character_creator
@@ -259,112 +250,6 @@ class CCMainFrame (tk.Frame):
             text += f"\n[{i:02d}]: {face.ts_data[i]:{fmt}}"
         self.text_right.delete(1.0, tk.END)
         self.text_right.insert(tk.END, text)
-
-
-class CCReplicateFG (tk.Toplevel):
-    def __init__ (self, parent, *args, **kwargs):
-        super().__init__(parent, *args, **kwargs)
-        self.title("FG Replication")
-        self.protocol("WM_DELETE_WINDOW", self.withdraw)
-
-        cc = parent.character_creator
-        # Target
-        self.target = cc.models[0].copy()
-        canvas = CCCanvas(self)
-        label = tk.Label(self, text="Target", font=("TkDefaultFont",16,"bold"))
-        button = tk.Button(self, text="Load FG", command=self.ask_load_target)
-
-        label.grid(row=0, column=0, columnspan=3, sticky="ew")
-        canvas.widget.grid(row=1, column=0, columnspan=3, sticky="nsew",padx=1)
-        button.grid(row=2, column=0, columnspan=3, sticky="ew")
-        self.canvas_target = canvas
-
-        # Replica
-        self.replica = cc.models[0].copy()
-        canvas = CCCanvas(self)
-        label = tk.Label(self, text="Replica", font=("TkDefaultFont",16,"bold"))
-        button = tk.Button(self, text="Save CSV", command=self.ask_save_replica)
-
-        label.grid(row=0, column=3, columnspan=3, sticky="ew")
-        canvas.widget.grid(row=1, column=3, columnspan=3, sticky="nsew",padx=1)
-        button.grid(row=2, column=3, columnspan=3, sticky="ew")
-        self.canvas_replica = canvas
-
-        # Options
-        combo = ttk.Combobox(self,
-                             values=("Fit shape data",
-                                     "Fit shape features",
-                                     "Fit shape mesh"),
-                             state="readonly")
-        combo.current(0)
-        self.combobox = combo
-        label1 = tk.Label(self, text="Max. Iterations:")
-        scale = tk.Scale(self,
-                         orient=tk.HORIZONTAL,
-                         showvalue=False,
-                         from_=100, to=1000,
-                         resolution=100,
-                         command=lambda x: label2.config(text=x.ljust(4)))
-        self.iterations = scale
-        label2 = tk.Label(self, text="100 ", font="TkFixedFont")
-        button = tk.Button(self, text="Confirm", command=self.find_replica,
-                           state="disabled")
-        self.confirm = button
-        combo.grid(row=3,column=0,sticky="w")
-        label1.grid(row=3,column=1,sticky="w")
-        scale.grid(row=3, column=2, columnspan=2, sticky="ew")
-        label2.grid(row=3,column=4,sticky="e")
-        button.grid(row=3,column=5,sticky="e")
-
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_columnconfigure(2, weight=1)
-        self.grid_columnconfigure(3, weight=1)
-
-    def find_replica (self):
-        cc = self.master.character_creator
-        current_mode_idx = int(self.combobox.current())
-        current_mode_txt = self.combobox.get()
-        current_iter = int(self.iterations.get())
-        solution, data, info = cc_target_shape(cc,
-                                               self.target.gs_data,
-                                               mode=current_mode_idx,
-                                               maxiter=current_iter)
-        self.solution = solution
-        self.replica.gs_data = data
-        self.canvas_replica.replot(self.replica)
-        text = info.message + f"\nIterations: {info.nit}"+\
-                f"\nError ({current_mode_txt.lower()}): {info.cost:.3g}"
-        if info.success:
-            tk.messagebox.showinfo("SUCCESS!", text, parent=self)
-        else:
-            tk.messagebox.showwarning("FAILURE?", text, parent=self)
-
-    def ask_load_target (self):
-        path = tk.filedialog.askopenfilename(parent=self,
-            title = "Load target...",
-            filetypes = [("FaceGen FG", "*.fg")],
-            defaultextension=".fg"
-            )
-        self.target.load_data(path)
-        self.canvas_target.replot(self.target)
-        self.confirm.config(state="normal")
-
-    def ask_save_replica (self):
-        path = tk.filedialog.asksaveasfilename(parent=self,
-            title = "Save replica...",
-            filetypes = [("Sliders values", "*.csv")],
-            defaultextension=".csv"
-            )
-        cc = self.master.character_creator
-        out = ""
-        for key,value in self.solution.items():
-            slider = cc.sliders[key]
-            value = slider.float2int(value)
-            label = slider.label
-            tab = slider.tab
-            out += f"{key:03d}, {value}, {label}, {tab};\n"
-        with open(path, 'w') as f:
-            f.write(out)
 
 
 class CCCanvas (FigureCanvasTkAgg):

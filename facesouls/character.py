@@ -66,7 +66,7 @@ class CharacterCreator (FaceGenerator):
         csv = csv_load(fname)
         for key, items in csv.items():
             if isinstance(key, int):
-                value = int(items[0])
+                value = int(items[-1])
                 slider = self.sliders[key]
                 self.values[key] = slider.int2float(value)
         if len(csv) != 0:
@@ -82,10 +82,10 @@ class CharacterCreator (FaceGenerator):
 
         for slider in to_save:
             key = slider.facegen_id
-            val = slider.int_value
-            lab = slider.label
             tab = slider.tab
-            out += f"{key:03d}, {val}, {lab}, {tab};\n"
+            lab = slider.label
+            val = slider.int_value
+            out += f"{key:03d}, {tab}, {lab}, {val};\n"
 
         with open(fname, 'w') as f:
             f.write(out)

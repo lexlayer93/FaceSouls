@@ -249,10 +249,11 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
 
 
 def cc_target_shape (character_creator, target_shape,
-                     *, mode=0, maxiter=100, **kwargs):
+                     *, preset=None, mode=0, maxiter=100, **kwargs):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.tabs.values() for key in tab]
+    if preset is None: preset = dict() if cc.all_at_once else np.zeros(cc.GS, dtype=np.float32)
 
     # available should be <= sequence
     if not set(available).issubset(set(sequence)):
@@ -276,14 +277,15 @@ def cc_target_shape (character_creator, target_shape,
 
     # initial state before shape sliders
     sam = cc.models[0].copy()
-    if cc.all_at_once:
+    if isinstance(preset, dict):
         preseq = [key for key in sequence if key < 100]
         cc.set_zero(sam)
         for key in preseq:
-            value = cc.values[key]
+            if key not in preset: preset[key] = cc.sliders[key].int2float(128)
+            value = preset[key]
             cc.set_control(key, value, sam)
     else:
-        preseq = []
+        sam.gs_data = np.asarray(preset)
     s0 = Nt.dot(sam.gs_data)
 
     # faster sequence, with clip
@@ -340,8 +342,8 @@ def cc_target_shape (character_creator, target_shape,
     solution = dict(zip(lgs_avail, result.x))
     sam.gs_data = apply_seq(result.x)
 
-    for key in preseq:
-        solution[key] = cc.values[key]
+    if isinstance(preset, dict):
+        solution = {**preset, **solution}
 
     result.nit = result.nfev
     return (solution, sam.gs_data, result)
@@ -441,9 +443,6 @@ def cc_target_shape_legacy (character_creator, target_shape,
     solution = dict(zip(lgs_avail, result.x))
     sam.gs_data = apply_seq(result.x)
     sam.gs_data.clip(*cc.shape_sym_range, sam.gs_data)
-
-    for key in preseq:
-        solution[key] = cc.values[key]
 
     result.cost = result.fun
     return (solution, sam.gs_data, result)
