@@ -17,14 +17,13 @@ __all__ = [
     "facemesh_align",
     "facemesh_register",
     "facemesh_slice_depth",
-    "facemesh_slice_height",
+    "facemesh_crop",
     "facemesh_nearest_vertex",
     "facemesh_nearest_point",
     "facemesh_nearest_barycentric",
-    "facemesh_from_ssm",
-    "ssm_target_points",
-    "cc_target_shape",
-    "cc_target_shape_legacy"
+    "facemesh_from_model",
+    "model_fit_points",
+    "cc_fit_shape"
     ]
 
 current_dir = os.path.dirname(__file__)
@@ -131,7 +130,7 @@ def facemesh_register (source_mesh, target_mesh, source_landmarks, target_landma
     nrr_points = nricp_amberg(source_mesh, target_mesh,
                             source_landmarks = np.asarray(source_landmarks, dtype=int),
                             target_positions = target_mesh.vertices[target_landmarks],
-                            distance_threshold = dt,
+                            distance_threshold = max(dt,1e-6),
                             steps = None)
     return nrr_points
 
@@ -139,25 +138,31 @@ def facemesh_register (source_mesh, target_mesh, source_landmarks, target_landma
 def facemesh_slice_depth (mesh, k=0.2):
     x_verts = mesh.vertices[:,0]
     imin, imax = x_verts.argmin(), x_verts.argmax()
-    z_max = mesh.bounds[1,2]
-    z_min = (mesh.vertices[imin,imax,2] + mesh.vertices[imax,2])/2.0
+    z_sli = (mesh.vertices[imin,2] + mesh.vertices[imax,2])/2.0
+    depth = mesh.bounds[1,2] - z_sli
+
+    return mesh.slice_plane([0,0,z_sli + k*depth], [0,0,1])
+
+
+def facemesh_crop (mesh, landmarks, tol=(0.05,0.1,0.05)):
+    lm_verts = mesh.vertices[landmarks]
+    x_tol, y_tol, z_tol = tol
+    x_min, y_min, z_min = lm_verts.min(axis=0)
+    x_max, y_max, z_max = lm_verts.max(axis=0)
+    width = x_max - x_min
+    height = y_max - y_min
     depth = z_max - z_min
 
-    return mesh.slice_plane([0,0,z_min + k*depth], [0,0,1])
+    cropped = (mesh
+              .slice_plane([0,y_min - y_tol*height,0], [0,1,0])
+              .slice_plane([0,y_max + y_tol*height,0], [0,-1,0])
+              .slice_plane([0,0,z_min - z_tol*depth], [0,0,1])
+              .slice_plane([0,0,z_max + z_tol*depth], [0,0,-1])
+              .slice_plane([x_min - x_tol*width,0,0], [1,0,0])
+              .slice_plane([x_max + x_tol*width,0,0], [-1,0,0])
+              )
 
-
-def facemesh_slice_height (mesh, landmarks, k=0.2):
-    lm_verts = mesh.vertices[landmarks]
-    y_min = lm_verts[:,1].min()
-    y_max = lm_verts[:,1].max()
-    height = y_max - y_min
-
-    sliced = mesh.slice_plane([0,y_min - k*height,0], [0,1,0])\
-                  .slice_plane([0,y_max + k*height,0], [0,-1,0])
-
-    _, new_landmarks = sliced.nearest.vertex(lm_verts)
-
-    return sliced, new_landmarks
+    return cropped
 
 
 def facemesh_nearest_vertex (mesh, points):
@@ -176,11 +181,12 @@ def facemesh_nearest_barycentric (mesh, points):
     return (tridx, barycentric)
 
 
-def facemesh_from_ssm (ssm):
+def facemesh_from_model (ssm):
     return Trimesh(ssm.vertices, ssm.triangles_only, process = False)
 
 
-def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="error", iterations=1, wz=0.0, wl=1.0):
+def model_fit_points (ssm, targets, indices=None, landmarks=None,
+                      *, minimize="error", iterations=1, wz=0.0, wl=1.0):
     deltas = np.concatenate([ssm.gs_deltas, ssm.ga_deltas], axis=2)
     verts0 = ssm.vertices
     verts = np.copy(verts0)
@@ -194,7 +200,7 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
     z_min, z_max = np.min(targets[:,2]), np.max(targets[:,2])
     weights[indices] = np.power((targets[:,2] - z_min)/(z_max-z_min), wz)
     if landmarks is not None:
-        weights[indices[landmarks]] *= wl
+        weights[landmarks] *= wl
 
     deltas *= weights[:,np.newaxis,np.newaxis]
     verts *= weights[:,np.newaxis]
@@ -242,18 +248,19 @@ def ssm_target_points (ssm, targets, indices=None, landmarks=None, minimize="err
 
     transformation = compose_matrix(scale=(kt,kt,kt), angles=(at,bt,ct), translate=(xt,yt,zt))
 
-    return (ssm.gs_data + fit[:ssm.GS],
-            ssm.ga_data + fit[ssm.GS:],
+    best = ssm.copy()
+    best.gs_data += fit[:ssm.GS]
+    best.ga_data += fit[ssm.GS:]
+    return (best,
             transformation,
             weighted_error)
 
 
-def cc_target_shape (character_creator, target_shape,
-                     *, preset=None, mode=0, maxiter=100, **kwargs):
+def cc_fit_shape (character_creator, target,
+                     *, mode=0, maxiter=100, **kwargs):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.tabs.values() for key in tab]
-    if preset is None: preset = dict() if cc.all_at_once else np.zeros(cc.GS, dtype=np.float32)
 
     # available should be <= sequence
     if not set(available).issubset(set(sequence)):
@@ -276,17 +283,17 @@ def cc_target_shape (character_creator, target_shape,
     mfit = mtx[:,lgs_idx]
 
     # initial state before shape sliders
-    sam = cc.models[0].copy()
-    if isinstance(preset, dict):
-        preseq = [key for key in sequence if key < 100]
-        cc.set_zero(sam)
-        for key in preseq:
-            if key not in preset: preset[key] = cc.sliders[key].int2float(128)
-            value = preset[key]
-            cc.set_control(key, value, sam)
+    replica = cc.models[0].copy()
+    if cc.all_at_once:
+        preseq = {k:cc.values[k] for k in sequence if k < 100}
+        cc.set_zero(replica)
+        for key,value in preseq.items():
+            cc.set_control(key, value, replica)
     else:
-        sam.gs_data = np.asarray(preset)
-    s0 = Nt.dot(sam.gs_data)
+        preseq = dict()
+
+    s0 = Nt.dot(replica.gs_data)
+    st = target.gs_data
 
     # faster sequence, with clip
     def apply_seq (p):
@@ -301,22 +308,22 @@ def cc_target_shape (character_creator, target_shape,
     if mode <= 0: # minimize shape difference
         def residual (p):
             s = apply_seq(p)
-            return s - target_shape
+            return s - st
         def jacobian (p):
             return in_range(p).dot(mfit)
 
     elif mode == 1: # minimize features difference
         def residual (p):
             s = apply_seq(p)
-            return np.dot(cc.lgs_coeffs, s - target_shape)
+            return np.dot(cc.lgs_coeffs, s - st)
         def jacobian (p):
             return cc.lgs_coeffs.dot(in_range(p)).dot(mfit)
 
     elif mode >= 2: # minimize vertex difference
-        deltas = sam.gs_deltas.reshape(-1, sam.gs_data.size)
+        deltas = replica.gs_deltas.reshape(-1, replica.gs_data.size)
         def residual (p):
             s = apply_seq(p)
-            return np.dot(deltas, s - target_shape)
+            return np.dot(deltas, s - st)
         def jacobian (p):
             return deltas.dot(in_range(p)).dot(mfit)
 
@@ -326,7 +333,7 @@ def cc_target_shape (character_creator, target_shape,
     ranges.sort(axis=1)
 
     # initial guess
-    p0 = np.linalg.pinv(mfit).dot(target_shape-s0)
+    p0 = np.linalg.pinv(mfit).dot(st-s0)
     if (np.any(p0 < ranges[:,0]) or
         np.any(p0 > ranges[:,1])):
         p0 = np.zeros_like(p0, dtype=np.float32)
@@ -340,109 +347,9 @@ def cc_target_shape (character_creator, target_shape,
                                     **kwargs)
 
     solution = dict(zip(lgs_avail, result.x))
-    sam.gs_data = apply_seq(result.x)
+    replica.gs_data = apply_seq(result.x)
 
-    if isinstance(preset, dict):
-        solution = {**preset, **solution}
+    solution = {**preseq, **solution}
 
     result.nit = result.nfev
-    return (solution, sam.gs_data, result)
-
-
-def cc_target_shape_legacy (character_creator, target_shape,
-                            *, mode=0, maxiter=100,**kwargs):
-    cc = character_creator
-    sequence = cc.sequence
-    available = [key for tab in cc.tabs.values() for key in tab]
-
-    # available should be <= sequence
-    if not set(available).issubset(set(sequence)):
-        available = [key for key in sequence if not cc.sliders[key].debug_only]
-
-    lgs_seq = [key for key in sequence if key//100 == 1]
-    lgs_avail = [key for key in available if key//100 == 1]
-    lgs_idx = [key % 100 for key in lgs_avail]
-
-    # cumulative effect of shape sliders
-    mtx = np.zeros_like(cc.lgs_coeffs.T)
-    I = np.eye(character_creator.GS)
-    Nt = np.copy(I)
-    for key in lgs_seq[::-1]:
-        idx = key % 100
-        c = cc.lgs_coeffs[idx,:].reshape(-1,1)
-        N = I - np.dot(c,c.T)
-        mtx[:,idx] = Nt.dot(c).reshape(-1)
-        Nt = Nt.dot(N)
-    mfit = mtx[:,lgs_idx]
-
-    # initial state before shape sliders
-    sam = cc.models[0].copy()
-    if cc.all_at_once:
-        preseq = [key for key in sequence if key < 100]
-        for key in preseq:
-            value = cc.values[key]
-            cc.set_control(key, value, sam)
-    else:
-        preseq = []
-    s0 = Nt.dot(sam.gs_data)
-
-    # faster sequence, without clip
-    def apply_seq (p):
-        return s0 + mfit.dot(p)
-
-    if mode <= 0: # minimize shape difference
-        def residual (p):
-            s = apply_seq(p)
-            return s - target_shape
-        def gradient (p):
-            return residual(p).dot(mfit)
-
-    elif mode == 1: # minimize features difference
-        def residual (p):
-            s = apply_seq(p)
-            return np.dot(cc.lgs_coeffs, s - target_shape)
-        def gradient (p):
-            return residual(p).dot(cc.lgs_coeffs).dot(mfit)
-
-    elif mode >= 2: # minimize vertex difference
-        deltas = sam.gs_deltas.reshape(-1, sam.gs_data.size)
-        def residual (p):
-            s = apply_seq(p)
-            return np.dot(deltas, s - target_shape)
-        def gradient (p):
-            return residual(p).dot(deltas).dot(mfit)
-
-    # avoid shape data saturation
-    smin, smax = cc.shape_sym_range
-    upper_lim = {"type": "ineq", "fun": lambda p: smax - apply_seq(p).max()}
-    lower_lim = {"type": "ineq", "fun": lambda p: apply_seq(p).min() - smin}
-
-    # sliders bounds
-    ranges = np.array([cc.sliders[key].available_range for key in lgs_avail],
-                            dtype=np.float32)
-    ranges.sort(axis=1)
-
-    # initial guess
-    p0 = np.linalg.pinv(mfit).dot(target_shape-s0)
-    if (np.any(p0 < ranges[:,0]) or
-        np.any(p0 > ranges[:,1]) or
-        upper_lim["fun"](p0) < 0 or
-        lower_lim["fun"](p0) < 0):
-        p0 = np.array([cc.values[k] for k in lgs_avail], dtype=np.float32)
-
-    # optimization
-    kwargs.setdefault("method","SLSQP")
-    kwargs.setdefault("options",{"maxiter":maxiter})
-    result = optimize.minimize(lambda p: 0.5*np.sum(residual(p)**2),
-                               p0,
-                               jac=gradient,
-                               bounds=ranges,
-                               constraints=[lower_lim, upper_lim],
-                               **kwargs)
-
-    solution = dict(zip(lgs_avail, result.x))
-    sam.gs_data = apply_seq(result.x)
-    sam.gs_data.clip(*cc.shape_sym_range, sam.gs_data)
-
-    result.cost = result.fun
-    return (solution, sam.gs_data, result)
+    return (solution, replica, result)
