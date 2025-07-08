@@ -135,7 +135,7 @@ def facemesh_register (source_mesh, target_mesh, source_landmarks, target_landma
     return nrr_points
 
 
-def facemesh_slice_depth (mesh, k=0.2):
+def facemesh_slice_depth (mesh, k=0.0):
     x_verts = mesh.vertices[:,0]
     imin, imax = x_verts.argmin(), x_verts.argmax()
     z_sli = (mesh.vertices[imin,2] + mesh.vertices[imax,2])/2.0
@@ -144,9 +144,8 @@ def facemesh_slice_depth (mesh, k=0.2):
     return mesh.slice_plane([0,0,z_sli + k*depth], [0,0,1])
 
 
-def facemesh_crop (mesh, landmarks, tol=(0.05,0.1,0.05)):
+def facemesh_crop (mesh, landmarks, *, x_tol=0.05, y_tol=0.1, z_tol=0.05):
     lm_verts = mesh.vertices[landmarks]
-    x_tol, y_tol, z_tol = tol
     x_min, y_min, z_min = lm_verts.min(axis=0)
     x_max, y_max, z_max = lm_verts.max(axis=0)
     width = x_max - x_min

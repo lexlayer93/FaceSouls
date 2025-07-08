@@ -16,6 +16,7 @@ class FaceGenSSM:
         else:
             self.GS = 50
             self.GA = 30
+            self.geo_basis_version = 0
         if fg is not None:
             self.load_shape_data(fg, endian=endian)
         else:
@@ -37,10 +38,14 @@ class FaceGenSSM:
             to.uv_triangles = self.uv_triangles
             to.uv_quads = self.uv_quads
             to.uv_triangles_only = self.uv_triangles_only
+        except AttributeError:
+            pass
+        try:
             to.gs_deltas = self.gs_deltas
             to.ga_deltas = self.ga_deltas
         except AttributeError:
             pass
+        to.geo_basis_version = self.geo_basis_version
         to.GS, to.GA = self.GS, self.GA
         to.gs_data = self.gs_data.copy()
         to.ga_data = self.ga_data.copy()
@@ -102,6 +107,7 @@ class FaceGenSTM:
         else:
             self.TS = 50
             self.TA = 0
+            self.tex_basis_version = 0
         if fg is not None:
             self.load_texture_data(fg, endian=endian)
         else:
@@ -116,10 +122,14 @@ class FaceGenSTM:
         if to is None: to = FaceGenSTM.__new__(FaceGenSTM)
         try:
             to.pixels0 = self.pixels0
+        except AttributeError:
+            pass
+        try:
             to.ts_deltas = self.ts_deltas
             to.ta_deltas = self.ta_deltas
         except AttributeError:
             pass
+        to.tex_basis_version = self.tex_basis_version
         to.TS, to.TA = self.TS, self.TA
         to.ts_data = self.ts_data.copy()
         to.ta_data = self.ta_data.copy()
@@ -191,7 +201,7 @@ class FaceGenSAM (FaceGenSSM, FaceGenSTM):
         fg.ta_data = (1000*self.ta_data).astype(int).tolist()
         fg.detail_texture_flag = 0
         fg.detail_image = b''
-        fg.save(fname, endian)
+        fg.save(fname, endian=endian)
 
 
 class FaceGenerator:

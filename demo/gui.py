@@ -3,7 +3,7 @@ from tkinter import ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from facesouls.character import CharacterCreator
-from facesouls.tools import facemesh_plot, cc_target_shape
+from facesouls.tools import facemesh_plot
 
 
 class CharacterCreatorTk (tk.Tk):
@@ -54,9 +54,23 @@ class CCMainMenu (tk.Menu):
 
 
         mainframe = parent.mainframe
-        options_menu = tk.Menu(self, tearoff=0)
-        options_menu.add_command(label="Reset view",
+        settings_menu = tk.Menu(self, tearoff=0)
+        settings_menu.add_command(label="Reset view",
                                  command=mainframe.canvas.reset)
+
+        _race_menu = tk.Menu(settings_menu, tearoff=0)
+        def race_set ():
+            r = str(race_set.race.get())
+            cc.set_race(r)
+            cc.update()
+            mainframe.update_all()
+        race_set.race = tk.StringVar(value="All")
+        for r in ("All", "Afro", "Asia", "Eind", "Euro"):
+            _race_menu.add_radiobutton(label=r,
+                                        variable=race_set.race,
+                                        command=race_set)
+        settings_menu.add_cascade(label="Set race", menu=_race_menu)
+
 
         def callback ():
             cc.toggle_sequence()
@@ -68,14 +82,14 @@ class CCMainMenu (tk.Menu):
                 _load_menu.entryconfig(0, state="disabled")
                 _load_menu.entryconfig(1, state="normal")
 
-        options_menu.add_checkbutton(label="Interlock suppression",
+        settings_menu.add_checkbutton(label="Interlock suppression",
                                      variable=mainframe._interlock,
                                      command=callback,
                                      )
         _load_menu.entryconfig(1 if cc.all_at_once else 0, state="disabled")
 
         self.add_cascade(label="File", menu=file_menu)
-        self.add_cascade(label="Settings", menu=options_menu)
+        self.add_cascade(label="Settings", menu=settings_menu)
 
     def ask_load_values (self):
         cc = self.master.character_creator
@@ -111,7 +125,7 @@ class CCMainMenu (tk.Menu):
     def ask_save_data (self):
         cc = self.master.character_creator
         mainframe = self.master.mainframe
-        path = tk.filedialog.askopenfilename(
+        path = tk.filedialog.asksaveasfilename(
             title = "Save...",
             filetypes = [("FaceGen FG", "*.fg")],
             defaultextension=".fg"

@@ -352,18 +352,18 @@ class FaceGenTRI (FaceGenFile):
 @dataclass(init=False)
 class FaceGenFG(FaceGenFile):
     magic = b"FRFG0001"
-    geo_basis_version: int
-    tex_basis_version: int
-    GS: int
-    GA: int
-    TS: int
-    TA: int
-    detail_texture_flag: int
+    geo_basis_version: int = 0
+    tex_basis_version: int = 0
+    GS: int = 50
+    GA: int = 30
+    TS: int = 50
+    TA: int = 0
+    detail_texture_flag: int = 0
     gs_data: list[int]
     ga_data: list[int]
     ts_data: list[int]
     ta_data: list[int]
-    detail_image: bytes
+    detail_image: bytes = b""
 
     def _parse (self, parser):
         self.geo_basis_version, self.tex_basis_version = parser.ulong_(2) # Geometry & Texture Basis Versions
