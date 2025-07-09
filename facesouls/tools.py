@@ -30,6 +30,12 @@ current_dir = os.path.dirname(__file__)
 DLIB_PREDICTOR_PATH = os.path.join(current_dir, "shape_predictor_68_face_landmarks.dat")
 DLIB_DETECTOR = None
 DLIB_PREDICTOR = None
+REGISTER_STEPS = [
+    (0.1, 10, 0, 10),
+    (0.2, 5, 0, 10),
+    (0.3, 2, 0, 10),
+    (0.1, 0, 0, 10)
+    ]
 
 
 def facemesh_plot (mesh, ax,
@@ -133,7 +139,7 @@ def facemesh_register (source_mesh, target_mesh, source_landmarks, target_landma
                             source_landmarks = np.asarray(source_landmarks, dtype=int),
                             target_positions = target_mesh.vertices[target_landmarks],
                             distance_threshold = max(dt,1e-6),
-                            steps = None)
+                            steps = REGISTER_STEPS)
     return nrr_points
 
 
