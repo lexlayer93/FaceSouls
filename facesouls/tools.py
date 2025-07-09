@@ -32,7 +32,9 @@ DLIB_DETECTOR = None
 DLIB_PREDICTOR = None
 
 
-def facemesh_plot (mesh, ax, *, rotation=0, persp="ortho", **kwargs):
+def facemesh_plot (mesh, ax,
+                   *, persp="persp", rotation=0, light_alt=15,
+                   **kwargs):
     try:
         vertices = mesh.vertices
         triangles = mesh.faces
@@ -44,7 +46,7 @@ def facemesh_plot (mesh, ax, *, rotation=0, persp="ortho", **kwargs):
     kwargs.setdefault("linewidth", 0)
     kwargs.setdefault("shade", True)
     kwargs.setdefault("antialiased", False)
-    kwargs.setdefault("lightsource", LightSource(azdeg=0, altdeg=15))
+    kwargs.setdefault("lightsource", LightSource(azdeg=0, altdeg=light_alt))
 
     ax.view_init(vertical_axis='y', elev=0, azim=rotation, roll=0)
     polyc = ax.plot_trisurf(vertices[:,0], vertices[:,1], triangles, vertices[:,2], **kwargs)
@@ -60,7 +62,7 @@ def facemesh_plot (mesh, ax, *, rotation=0, persp="ortho", **kwargs):
     return polyc
 
 
-def facemesh_landmarks (mesh):
+def facemesh_landmarks (mesh, **kwargs):
     global DLIB_DETECTOR, DLIB_PREDICTOR
     if DLIB_DETECTOR is None:
         DLIB_DETECTOR = dlib.get_frontal_face_detector()
@@ -75,7 +77,7 @@ def facemesh_landmarks (mesh):
 
     fig = plt.figure(facecolor='k', dpi=300)
     ax = fig.add_axes([0, 0, 1, 1], projection='3d')
-    facemesh_plot(mesh, ax)
+    facemesh_plot(mesh, ax, persp="ortho", **kwargs)
     fig.canvas.draw()
     buf, (width, height) = fig.canvas.print_to_buffer()
     plt.close(fig)
