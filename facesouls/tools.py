@@ -39,7 +39,7 @@ REGISTER_STEPS = [
 
 
 def facemesh_plot (mesh, ax,
-                   *, persp="persp", rotation=0, light_alt=15,
+                   *, persp="persp", rotation=0, light_alt=20,
                    **kwargs):
     try:
         vertices = mesh.vertices

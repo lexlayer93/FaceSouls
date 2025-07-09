@@ -177,7 +177,7 @@ if __name__ == "__main__":
     parser_f2f.add_argument("cc2", help="Destined character creator set (.zip).")
     parser_f2f.add_argument("src", help="Input, target face (.fg).")
     parser_f2f.add_argument("dst", nargs='?', default=None, help="Output, optimal face (.fg).")
-    parser_f2f.add_argument("--light", type=float, default=15.0, help="Light source elevation.")
+    parser_f2f.add_argument("--light", type=float, default=20.0, help="Light source elevation.")
     parser_f2f.add_argument("--depth", type=float, default=0.0, help="Face outline, further ahead (+) or further back (-).")
     parser_f2f.add_argument("--height", type=float, default=0.1, help="Tolerance of vertical cropping.")
     parser_f2f.add_argument("--dist", type=float, default=2.0, help="Distance threshold for face register.")
