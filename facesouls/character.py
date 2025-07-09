@@ -12,8 +12,7 @@ class CharacterCreator (FaceGenerator):
         super().__init__(ctl, endian=endian)
         self.all_at_once = False
         self.sliders = dict()
-        self.values = dict()
-        self.tabs = dict()
+        self.menu = dict()
         self.sequence = list()
         no_limit = (float("-inf"), float("inf"))
         self.shape_sym_range = no_limit
@@ -31,6 +30,18 @@ class CharacterCreator (FaceGenerator):
             self.load_data(preset, endian=endian)
 
         self.load_menu(menu) # sets all_at_once, updates models...
+
+    @property
+    def values (self):
+        return {k:s.value for k,s in self.sliders.items() if not s.debug_only}
+
+    @property
+    def labels (self):
+        return {k:s.label for k,s in self.sliders.items() if not s.debug_only}
+
+    @property
+    def tabs (self):
+        return {k:s.tab for k,s in self.sliders.items() if not s.debug_only}
 
     def load_models (self, *models, endian=None):
         self.models = []
@@ -68,7 +79,7 @@ class CharacterCreator (FaceGenerator):
             if isinstance(key, int):
                 value = int(items[-1])
                 slider = self.sliders[key]
-                self.values[key] = slider.int2float(value)
+                slider.value = slider.int2float(value)
         if len(csv) != 0:
             self.all_at_once = True
             self.update()
@@ -78,7 +89,7 @@ class CharacterCreator (FaceGenerator):
         if not sort:
             to_save = [slider for key,slider in self.sliders.items() if not slider.debug_only]
         else:
-            to_save = [self.sliders[key] for tab in self.tabs.values() for key in tab]
+            to_save = [self.sliders[key] for tab in self.menu.values() for key in tab]
 
         for slider in to_save:
             key = slider.facegen_id
@@ -104,7 +115,7 @@ class CharacterCreator (FaceGenerator):
 
     def load_menu (self, src=None):
         self.reset_sliders()
-        self.tabs.clear()
+        self.menu.clear()
         has_sequence = False
 
         if src is not None:
@@ -121,9 +132,9 @@ class CharacterCreator (FaceGenerator):
                 slider.float_range = (float(float_min), float(float_max))
                 slider.int_range = (int(int_min), int(int_max))
                 slider.tab = tab
-                if tab not in self.tabs:
-                    self.tabs[tab] = list()
-                self.tabs[tab].append(key)
+                if tab not in self.menu:
+                    self.menu[tab] = list()
+                self.menu[tab].append(key)
             elif key==">>>":
                 self.sequence = [int(k) for k in items]
                 has_sequence = True
@@ -140,30 +151,30 @@ class CharacterCreator (FaceGenerator):
                 ta_min, ta_max = items
                 self.texture_asym_range = (float(ta_min), float(ta_max))
 
-        if len(self.tabs) == 0:
+        if len(self.menu) == 0:
             for key,slider in self.sliders.items():
                 tab = slider.tab
-                if tab not in self.tabs:
-                    self.tabs[tab] = list()
-                self.tabs[tab].append(key)
+                if tab not in self.menu:
+                    self.menu[tab] = list()
+                self.menu[tab].append(key)
 
         self.all_at_once = has_sequence
         self.reset_values()
         if not has_sequence:
-            self.sequence = [key for tab in self.tabs.values() for key in tab]
+            self.sequence = [key for tab in self.menu.values() for key in tab]
 
     def update (self):
         sam = self.models[0]
         if self.all_at_once:
             self.set_zero(sam)
             for key in self.sequence:
-                value = self.values[key]
+                value = self.sliders[key].value
                 self.set_control(key, value, sam)
             self.clip_data(sam)
         else:
             self.clip_data(sam)
-            for key in self.values:
-                self.values[key] = self.get_control(key, sam)
+            for key,slider in self.sliders.items():
+                slider.value = self.get_control(key, sam)
 
     def toggle_sequence (self, new=None):
         if self.all_at_once == new:
@@ -172,10 +183,11 @@ class CharacterCreator (FaceGenerator):
         self.update()
 
     def set_slider (self, key, value):
+        slider = self.sliders[key]
         if isinstance(value, int):
-            value = self.sliders[key].int2float(value)
+            value = slider.int2float(value)
         if self.all_at_once:
-            self.values[key] = value
+            slider.value = value
             self.update()
         else:
             self.set_control(key, value)
@@ -189,15 +201,14 @@ class CharacterCreator (FaceGenerator):
         sam.ta_data.clip(*self.texture_asym_range, sam.ta_data)
 
     def reset_values (self):
-        self.values.clear()
         for key,slider in self.sliders.items():
-            self.values[key] = sum(slider.float_range)/2
+            slider.value = sum(slider.float_range)/2
         self.update()
 
     def reset_sliders (self):
         self.sliders.clear()
         nadd = {100: self.LGS, 200: self.LTS, 300: self.LGA, 400: self.LTA}
-        for key in _SETMAP:
+        for key in SETMAP:
             n = nadd.get(key, 1)
             for idx in range(n):
                 self.sliders[key+idx] = CharacterSlider(self, key+idx)
@@ -205,20 +216,20 @@ class CharacterCreator (FaceGenerator):
     def get_control (self, key, sam=None):
         if sam is None: sam = self.models[0]
         i = key % 100
-        k = key - i
-        if k != 0:
-            return _GETMAP[k](self, i, sam)
+        if key >= 100:
+            k = (key//100)*100
+            return GETMAP[k](self, i, sam)
         else:
-            return _GETMAP[i](self, sam)
+            return GETMAP[i](self, sam)
 
     def set_control (self, key, value, sam=None):
         if sam is None: sam = self.models[0]
         i = key % 100
-        k = key - i
-        if k != 0:
-            _SETMAP[k](self, i, value, sam)
+        if key >= 100:
+            k = (key//100)*100
+            SETMAP[k](self, i, value, sam)
         else:
-            _SETMAP[i](self, value, sam)
+            SETMAP[i](self, value, sam)
 
 
 class CharacterSlider:
@@ -226,33 +237,25 @@ class CharacterSlider:
         self.parent = parent
         self.facegen_id = key
         self.debug_only = True
+        self.debug_tab = DFTABS.get((key//100)*100)
         if key < 100:
-            self.debug_label = _DBLABELS[key]
-            self.label = self.debug_label
-            k = (key//10)*10
-            self.float_range = _DFRANGES[k]
+            self.debug_label = DBLABELS.get(key)
+            self.float_range = DFRANGES.get((key//10)*10)
         else:
             k = (key//100)*100
             idx = key % 100
-            self.debug_label = getattr(parent, _DBLABELS[k])[idx]
-            self.label = self.debug_label
-            self.float_range = _DFRANGES[k]
+            self.debug_label = getattr(parent, DBLABELS.get(k))[idx]
+            self.float_range = DFRANGES.get(k)
         self.int_range = (0, 255)
-        self.tab = _DFTABS[key//100]
+        self.tab = self.debug_tab
+        self.label = self.debug_label
+        self.value = sum(self.float_range)/2.0
 
     @property
     def available_range (self):
         int_min, int_max = self.int_range
         af_range = self.int2float(int_min), self.int2float(int_max)
         return min(af_range), max(af_range)
-
-    @property
-    def value (self):
-        return self.parent.values[self.facegen_id]
-
-    @value.setter
-    def value (self, x):
-        self.parent.values[self.facegen_id] = float(x)
 
     @property
     def int_value (self):
@@ -328,22 +331,25 @@ def zip_load (src):
     return endian, ctl, menu, models
 
 
-_DFTABS = {0: "[Generate]",
-           1: "[Shape Symmetry]",
-           2: "[Texture Symmetry]",
-           3: "[Shape Asymmetry]",
-           4: "[Texture Asymmetry]"}
+DFTABS = {
+0: "[Generate]",
+100: "[Shape Sym.]",
+200: "[Texture Sym.]",
+300: "[Shape Asym.]",
+400: "[Texture Asym.]"}
 
-_DFRANGES = {10: (15.0, 60.0),
-             20: (-4.0, 4.0),
-             30: (0.0, 2.0),
-             40: (0.0, 2.0),
-             100: (-10.0, 10.0),
-             200: (-10.0, 10.0),
-             300: (-10.0, 10.0),
-             400: (-10.0, 10.0)}
+DFRANGES = {
+10: (15.0, 60.0),
+20: (-4.0, 4.0),
+30: (0.0, 2.0),
+40: (0.0, 2.0),
+100: (-10.0, 10.0),
+200: (-10.0, 10.0),
+300: (-10.0, 10.0),
+400: (-10.0, 10.0)}
 
-_DBLABELS = {10: "Age",
+DBLABELS = {
+10: "Age",
 11: "Age (shape)",
 12: "Age (texture)",
 13: "Age~",
@@ -370,7 +376,8 @@ _DBLABELS = {10: "Age",
 400: "lta_labels"
 }
 
-_GETMAP = {10: FaceGenerator.get_age,
+GETMAP = {
+10: FaceGenerator.get_age,
 11: FaceGenerator.get_shape_age,
 12: FaceGenerator.get_texture_age,
 13: FaceGenerator.get_age,
@@ -396,7 +403,8 @@ _GETMAP = {10: FaceGenerator.get_age,
 300: FaceGenerator.get_shape_asym_control,
 400: FaceGenerator.get_texture_asym_control}
 
-_SETMAP = {10: FaceGenerator.set_age_neutral,
+SETMAP = {
+10: FaceGenerator.set_age_neutral,
 11: FaceGenerator.set_shape_age_neutral,
 12: FaceGenerator.set_texture_age_neutral,
 13: FaceGenerator.set_age,

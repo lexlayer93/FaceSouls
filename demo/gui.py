@@ -161,8 +161,8 @@ class CCMainFrame (tk.Frame):
         #notebook.config(width=300)
         notebook.grid(row=0, column=0, sticky="nsew")
         self._slivars = dict()
-        maxlen = max(len(t) for t in cc.tabs)
-        for t,tab in cc.tabs.items():
+        maxlen = max(len(t) for t in cc.menu)
+        for t,tab in cc.menu.items():
             frame = tk.Frame(notebook)
             frame.pack(expand=True, fill=tk.BOTH)
             notebook.add(frame, text=t.center(maxlen))
@@ -229,7 +229,7 @@ class CCMainFrame (tk.Frame):
         fmt = ".3f"
         text = "GENERAL FEATURES:"
         for k in (10, 20, 30):
-            svalue = cc.values[k]
+            svalue = cc.sliders[k].value
             cvalue = cc.get_control(k)
             label = cc.sliders[k].debug_label
             text += f"\n[{svalue:{fmt}}]({cvalue:{fmt}})<{label}"
@@ -237,7 +237,7 @@ class CCMainFrame (tk.Frame):
         text += "\n\nSYM. SHAPE FEATURES:"
         for i in range(cc.LGS):
             k = 100+i
-            svalue = cc.values[k]
+            svalue = cc.sliders[k].value
             cvalue = cc.get_control(k)
             label = cc.sliders[k].debug_label
             text += f"\n{i:02d}:[{svalue:{fmt}}]({cvalue:{fmt}})<{label}"
@@ -245,7 +245,7 @@ class CCMainFrame (tk.Frame):
         text += "\n\nSYM. TEXTURE FEATURES:"
         for i in range(cc.LTS):
             k = 200+i
-            svalue = cc.values[k]
+            svalue = cc.sliders[k].value
             cvalue = cc.get_control(k)
             label = cc.sliders[k].debug_label
             text += f"\n{i:02d}:[{svalue:{fmt}}]({cvalue:{fmt}})<{label}"

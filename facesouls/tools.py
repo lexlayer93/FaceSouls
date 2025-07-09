@@ -259,7 +259,7 @@ def cc_fit_shape (character_creator, target,
                      *, mode=0, maxiter=100, **kwargs):
     cc = character_creator
     sequence = cc.sequence
-    available = [key for tab in cc.tabs.values() for key in tab]
+    available = [key for tab in cc.menu.values() for key in tab]
 
     # available should be <= sequence
     if not set(available).issubset(set(sequence)):
@@ -284,7 +284,7 @@ def cc_fit_shape (character_creator, target,
     # initial state before shape sliders
     replica = cc.models[0].copy()
     if cc.all_at_once:
-        preseq = {k:cc.values[k] for k in sequence if k < 100}
+        preseq = {k:cc.sliders[k].value for k in sequence if k < 100}
         cc.set_zero(replica)
         for key,value in preseq.items():
             cc.set_control(key, value, replica)
