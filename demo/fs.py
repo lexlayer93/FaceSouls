@@ -4,9 +4,10 @@ from facesouls.tools import *
 import matplotlib.pyplot as plt
 
 
-def fg2cc (cc, src, dst=None,
-           *, preset=None, mode=2, maxiter=100,
-           hide=False, how=False, step=5):
+def fg2cc (cc, src, dst=None, *, preset=None,
+           mode=2, maxit=100,
+           how=False, step=5,
+           show=False):
     cc = CharacterCreator(cc)
     target = cc.models[0].copy()
     target.load_data(src)
@@ -16,12 +17,8 @@ def fg2cc (cc, src, dst=None,
         elif preset.endswith(".csv"):
             cc.load_values(preset)
 
-    solution, replica, info = cc_fit_shape(cc, target, mode=mode, maxiter=maxiter)
+    solution, replica, info = cc_fit_shape(cc, target, mode=mode, maxiter=maxit)
     replica.ga_data.fill(0.0)
-
-    out = f"# {info.message}"
-    out += f"\n# Iterations: {info.nit}"
-    out += f"\n# Error({mode}): {info.cost}"
 
     if how:
         lj = len(max(cc.labels.values(), key=len))
@@ -30,12 +27,17 @@ def fg2cc (cc, src, dst=None,
             miss1 = min(miss1, step-miss1)
             miss2 = (vmax-value) % step
             miss2 = min(miss2, step-miss2)
-            if miss1 <= miss2:
-                k = round((value-vmin)/step)
-                return '+' + str(k)
+            tck1 = round((value-vmin)/step)
+            tck2 = round((vmax-value)/step)
+            if miss1 < miss2 or (miss1 == miss2 and tck1 <= tck2):
+                return '+' + str(tck1)
             else:
                 k = round((vmax-value)/step)
-                return '-' + str(k)
+                return '-' + str(tck2)
+
+    out = f"# {info.message}"
+    out += f"\n# Iterations: {info.nit}"
+    out += f"\n# Error({mode}): {info.cost}"
 
     for key, value in solution.items():
         slider = cc.sliders[key]
@@ -53,7 +55,7 @@ def fg2cc (cc, src, dst=None,
     else:
         with open(dst, 'w') as f: f.write(out)
 
-    if hide:
+    if not show:
         return
 
     fig = plt.figure(figsize=plt.figaspect(0.5), facecolor='k', dpi=100)
@@ -69,10 +71,12 @@ def fg2cc (cc, src, dst=None,
     plt.show()
 
 
-def fg2fg (cc1, cc2, src, dst=None,
-           *, light=15, depth=0.0, height=0.1, dist=2.0, unsafe=False,
-           weight_lm=2.0, weight_z=0.2, iterations=2, minimize="error",
-           hide=False, show_lm=False, rotate=0):
+def fg2fg (cc1, cc2, src, dst=None, *,
+           light=25, depth=0.0,
+           height=0.1, dist=1.0,
+           wl=2.0, wz=0.2, nit=2, minimize="error",
+           unsafe=False, force=False,
+           show=False, show_lm=False, rotate=0):
     cc1 = CharacterCreator(cc1)
     cc2 = CharacterCreator(cc2)
     face1 = cc1.models[0].copy()
@@ -107,19 +111,21 @@ def fg2fg (cc1, cc2, src, dst=None,
     cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
     targets = facemesh_register(cropped2, cropped1, lm2c, lm1c, k=dist)
     indices = facemesh_nearest_vertex(mesh2, cropped2.vertices)
+    if force:
+        targets = facemesh_nearest_point(cropped1, targets)
 
     face3, _, err = model_fit_points(face2, targets, indices, lm2,
-                                     wl=weight_lm, wz=weight_z,
-                                     iterations=iterations,
+                                     wl=wl, wz=wz,
+                                     iterations=nit,
                                      minimize=minimize)
     face3.ga_data.fill(0.0)
+
+    print("Error:", err)
 
     if dst is not None:
         face3.save_data(dst)
 
-    print("Error:", err)
-
-    if hide:
+    if not show:
         return
 
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
@@ -161,34 +167,35 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    parser_f2c = subparsers.add_parser("fg2cc", help="Face replication for a character creator.")
+    parser_f2c = subparsers.add_parser("fg2cc", help="Find slider values to match a face inside character creator.")
     parser_f2c.add_argument("cc", help="Character creator set (.zip).")
     parser_f2c.add_argument("src", help="Input, target face (.fg).")
     parser_f2c.add_argument("dst", nargs='?', default=None, help="Output, optimal sliders (.csv).")
-    parser_f2c.add_argument("--preset", default=None, help="Preset face (.fg/.csv).")
-    parser_f2c.add_argument("--mode", default=2, type=int, help="Fit mode.")
-    parser_f2c.add_argument("--maxiter", default=100, type=int, help="Max. iterations.")
-    parser_f2c.add_argument("--hide", action="store_true", help="Do not show target/replica faces.")
+    parser_f2c.add_argument("--preset", default=None, help="Preset face (.fg/.csv), only for DeS/DS1.")
+    parser_f2c.add_argument("--mode", default=2, type=int, help="Fit mode (0 = data, 1 = features, 2 = geometry).")
+    parser_f2c.add_argument("--maxit", default=100, type=int, help="Max. number of iterations.")
     parser_f2c.add_argument("--how", action="store_true", help="Output slider as ticks from sides.")
     parser_f2c.add_argument("--step", default=5, type=int, help="Steps by tick (must use with --how).")
+    parser_f2c.add_argument("--show", action="store_true", help="Show target/replica faces.")
 
-    parser_f2f = subparsers.add_parser("fg2fg", help="Face translation between character creators.")
+    parser_f2f = subparsers.add_parser("fg2fg", help="Convert a face to another character creator.")
     parser_f2f.add_argument("cc1", help="Source character creator set (.zip).")
     parser_f2f.add_argument("cc2", help="Destined character creator set (.zip).")
     parser_f2f.add_argument("src", help="Input, target face (.fg).")
     parser_f2f.add_argument("dst", nargs='?', default=None, help="Output, optimal face (.fg).")
-    parser_f2f.add_argument("--light", type=float, default=20.0, help="Light source elevation.")
+    parser_f2f.add_argument("--light", type=float, default=25.0, help="Light source elevation.")
     parser_f2f.add_argument("--depth", type=float, default=0.0, help="Face outline, further ahead (+) or further back (-).")
-    parser_f2f.add_argument("--height", type=float, default=0.1, help="Tolerance of vertical cropping.")
-    parser_f2f.add_argument("--dist", type=float, default=2.0, help="Distance threshold for face register.")
-    parser_f2f.add_argument("--weight_lm", type=float, default=2.0, help="Landmarks relative weight.")
-    parser_f2f.add_argument("--weight_z", type=float, default=0.2, help="Z-weight control.")
-    parser_f2f.add_argument("--iterations", type=int, default=2, help="Number of fit iterations.")
+    parser_f2f.add_argument("--height", type=float, default=0.1, help="Vertical cropping tolerance.")
+    parser_f2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent for mesh registration.")
+    parser_f2f.add_argument("--wl", type=float, default=2.0, help="Landmarks relative weight.")
+    parser_f2f.add_argument("--wz", type=float, default=0.2, help="Z-weight control.")
+    parser_f2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
     parser_f2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Z-weight control.")
     parser_f2f.add_argument("--unsafe", action="store_true", help="Unsafe landmark detection.")
-    parser_f2f.add_argument("--hide", action="store_true", help="Do not show target/replica faces.")
+    parser_f2f.add_argument("--force", action="store_true", help="Force geometry after registration.")
+    parser_f2f.add_argument("--show", action="store_true", help="Show target/replica faces.")
     parser_f2f.add_argument("--show_lm", action="store_true", help="Show landmarks (do not use with --hide).")
-    parser_f2f.add_argument("--rotate", type=float, default=0.0, help="90 for side view.")
+    parser_f2f.add_argument("--rotate", type=float, default=0.0, help="90 degrees for side view.")
 
     args = parser.parse_args()
 

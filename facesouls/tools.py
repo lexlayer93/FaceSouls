@@ -132,9 +132,9 @@ def facemesh_align (source_mesh, target_mesh, source_landmarks, target_landmarks
     return aligned, matrix
 
 
-def facemesh_register (source_mesh, target_mesh, source_landmarks, target_landmarks, k=2.0):
+def facemesh_register (source_mesh, target_mesh, source_landmarks, target_landmarks, k=1.0):
     _, dist, _ = closest_point(target_mesh, source_mesh.vertices)
-    dt = np.median(dist) * k
+    dt = np.median(dist) * (2**k)
     nrr_points = nricp_amberg(source_mesh, target_mesh,
                             source_landmarks = np.asarray(source_landmarks, dtype=int),
                             target_positions = target_mesh.vertices[target_landmarks],
