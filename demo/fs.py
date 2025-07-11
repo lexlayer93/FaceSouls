@@ -3,6 +3,19 @@ from facesouls.character import CharacterCreator
 from facesouls.tools import *
 import matplotlib.pyplot as plt
 
+def view (cc, face):
+    cc = CharacterCreator(cc)
+    if isinstance(face, str):
+        if face.endswith(".fg"):
+            cc.load_data(face)
+        else:
+            cc.load_values(face)
+    face = cc.models[0]
+    fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
+    ax = fig.add_axes([0, 0, 1, 1], projection="3d")
+    facemesh_plot((face.vertices, face.triangles_only), ax)
+    plt.show()
+
 
 def fg2cc (cc, src, dst=None, *, preset=None,
            mode=2, maxit=100,
@@ -14,7 +27,7 @@ def fg2cc (cc, src, dst=None, *, preset=None,
     if isinstance(preset, str):
         if preset.endswith(".fg"):
             cc.load_data(preset)
-        elif preset.endswith(".csv"):
+        else:
             cc.load_values(preset)
 
     solution, replica, info = cc_fit_shape(cc, target, mode=mode, maxiter=maxit)
@@ -167,6 +180,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    parser_view = subparsers.add_parser("view", help="View face 3D model.")
+    parser_view.add_argument("cc", help="Character creator set (.zip).")
+    parser_view.add_argument("face", help="Face (.fg/.csv).")
+
     parser_f2c = subparsers.add_parser("fg2cc", help="Find slider values to match a face inside character creator.")
     parser_f2c.add_argument("cc", help="Character creator set (.zip).")
     parser_f2c.add_argument("src", help="Input, target face (.fg).")
@@ -201,8 +218,8 @@ if __name__ == "__main__":
 
     args = vars(args)
     cmd = args.pop("command")
-    if cmd == "howto":
-        howto(**args)
+    if cmd == "view":
+        view(**args)
     elif cmd == "fg2cc":
         fg2cc(**args)
     elif cmd == "fg2fg":
