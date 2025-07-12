@@ -3,6 +3,7 @@ from facesouls.character import CharacterCreator
 from facesouls.tools import *
 import matplotlib.pyplot as plt
 
+
 def view (cc, face):
     cc = CharacterCreator(cc)
     if isinstance(face, str):
@@ -14,6 +15,26 @@ def view (cc, face):
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
     ax = fig.add_axes([0, 0, 1, 1], projection="3d")
     facemesh_plot((face.vertices, face.triangles_only), ax)
+    plt.show()
+
+
+def delta (cc, idx, length=1, width=1):
+    cc = CharacterCreator(cc)
+    face = cc.models[0]
+    cc.set_zero(face)
+    pxyz = face.vertices.T
+    dxyz = face.gs_deltas.dot(cc.lgs_coeffs[idx,:]).T
+    dsq = dxyz**2
+    dsq = dsq.sum(axis=0)
+    imax = dsq.argsort()[-4:]
+
+    fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
+    ax = fig.add_axes([0, 0, 1, 1], projection="3d")
+    facemesh_plot((face.vertices, face.triangles_only), ax)
+    ax.quiver(*pxyz, *dxyz, length=length, linewidth=width)
+    xmax, ymax, zmax = pxyz[:,imax]
+    ax.quiver(xmax,ymax,zmax,0,0,-5e-2,color="red",pivot="tip")
+    print(cc.lgs_labels[idx])
     plt.show()
 
 
@@ -30,7 +51,7 @@ def fg2cc (cc, src, dst=None, *, preset=None,
         else:
             cc.load_values(preset)
 
-    solution, replica, info = cc_fit_shape(cc, target, mode=mode, maxiter=maxit)
+    solution, replica, info = fit_cc_shape(cc, target, mode=mode, maxiter=maxit)
     replica.ga_data.fill(0.0)
 
     if how:
@@ -120,14 +141,14 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     cropped2 = facemesh_crop(mesh2, lm2, y_tol=height)
     lm1c = facemesh_nearest_vertex(cropped1, mesh1.vertices[lm1])
     lm2c = facemesh_nearest_vertex(cropped2, mesh2.vertices[lm2])
-
     cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
+
     targets = facemesh_register(cropped2, cropped1, lm2c, lm1c, k=dist)
     indices = facemesh_nearest_vertex(mesh2, cropped2.vertices)
     if force:
         targets = facemesh_nearest_point(cropped1, targets)
 
-    face3, _, err = model_fit_points(face2, targets, indices, lm2,
+    face3, _, err = fit_model_points(face2, targets, indices, lm2,
                                      wl=wl, wz=wz,
                                      iterations=nit,
                                      minimize=minimize)
@@ -145,17 +166,19 @@ def fg2fg (cc1, cc2, src, dst=None, *,
 
     ax = fig.add_subplot(2, 2, 1, projection='3d')
     ax.set_title("Target", color='w')
-    facemesh_plot(mesh1, ax, rotation=rotate, light_alt=light)
+    facemesh_plot(cropped1, ax, rotation=rotate, light_alt=light)
     if show_lm:
-        x, y, z = mesh1.vertices[lm1,:].T
-        ax.scatter(x, y, z+1e-3, color='red', marker='o')
+        x, y, z = cropped1.vertices[lm1c,:].T
+        print(x.min(),x.max())
+        ax.scatter(x, y, z+1e-3, color="red", marker='o')
 
     ax = fig.add_subplot(2, 2, 3, projection='3d')
     ax.set_title("Same data", color='w')
-    facemesh_plot(mesh2, ax, rotation=rotate, light_alt=light)
+    facemesh_plot(cropped2, ax, rotation=rotate, light_alt=light)
     if show_lm:
-        x, y, z = mesh2.vertices[lm2,:].T
-        ax.scatter(x, y, z+1e-3, color='red', marker='o')
+        x, y, z = cropped2.vertices[lm2c,:].T
+        print(x.min(),x.max())
+        ax.scatter(x, y, z+1e-3, color="red", marker='o')
 
     ax = fig.add_subplot(2, 2, 2, projection='3d')
     ax.set_title("Closest geometry", color='w')
@@ -183,6 +206,12 @@ if __name__ == "__main__":
     parser_view = subparsers.add_parser("view", help="View face 3D model.")
     parser_view.add_argument("cc", help="Character creator set (.zip).")
     parser_view.add_argument("face", help="Face (.fg/.csv).")
+
+    parser_view = subparsers.add_parser("delta", help="View control diff morph.")
+    parser_view.add_argument("cc", help="Character creator set (.zip).")
+    parser_view.add_argument("idx", type=int, help="Control index.")
+    parser_view.add_argument("--length", type=float, help="Arrows length.")
+    parser_view.add_argument("--width", type=float, help="Arrows width.")
 
     parser_f2c = subparsers.add_parser("fg2cc", help="Find slider values to match a face inside character creator.")
     parser_f2c.add_argument("cc", help="Character creator set (.zip).")
@@ -220,6 +249,8 @@ if __name__ == "__main__":
     cmd = args.pop("command")
     if cmd == "view":
         view(**args)
+    elif cmd == "delta":
+        delta(**args)
     elif cmd == "fg2cc":
         fg2cc(**args)
     elif cmd == "fg2fg":

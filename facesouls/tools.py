@@ -4,7 +4,7 @@ from scipy import optimize
 import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
 import dlib
-from trimesh.base import Trimesh
+from trimesh.base import Trimesh, Scene
 from trimesh.proximity import closest_point
 from trimesh.registration import procrustes, icp, nricp_amberg, nricp_sumner
 from trimesh.triangles import points_to_barycentric, barycentric_to_points
@@ -22,8 +22,10 @@ __all__ = [
     "facemesh_nearest_point",
     "facemesh_nearest_barycentric",
     "facemesh_from_model",
-    "model_fit_points",
-    "cc_fit_shape"
+    "fit_model_points",
+    "fit_cc_shape",
+    "Trimesh",
+    "Scene"
     ]
 
 current_dir = os.path.dirname(__file__)
@@ -31,10 +33,10 @@ DLIB_PREDICTOR_PATH = os.path.join(current_dir, "shape_predictor_68_face_landmar
 DLIB_DETECTOR = None
 DLIB_PREDICTOR = None
 REGISTER_STEPS = [
-    (0.1, 10, 0, 10),
-    (0.2, 5, 0, 10),
-    (0.3, 2, 0, 10),
-    (0.1, 0, 0, 10)
+    (0.1, 10, 0.01, 10),
+    (0.2, 5, 0.01, 10),
+    (0.3, 2, 0.01, 10),
+    (0.1, 0, 0.01, 10)
     ]
 
 
@@ -124,22 +126,28 @@ def facemesh_landmarks (mesh, **kwargs):
 
 def facemesh_align (source_mesh, target_mesh, source_landmarks, target_landmarks):
     matrix0, _, _ = procrustes(source_mesh.vertices[source_landmarks],
-                               target_mesh.vertices[target_landmarks])
+                               target_mesh.vertices[target_landmarks],
+                               reflection=False)
     matrix, transformed, _ = icp(source_mesh.vertices,
-                        target_mesh.vertices,
-                        initial = matrix0)
+                                target_mesh.vertices,
+                                initial = matrix0,
+                                reflection=False)
     aligned = Trimesh(vertices=transformed, faces=source_mesh.faces, process=False)
     return aligned, matrix
 
 
-def facemesh_register (source_mesh, target_mesh, source_landmarks, target_landmarks, k=1.0):
+def facemesh_register (source_mesh, target_mesh,
+                       source_landmarks, target_landmarks,
+                       k=1.0,
+                       **kwargs):
     _, dist, _ = closest_point(target_mesh, source_mesh.vertices)
     dt = np.median(dist) * (2**k)
     nrr_points = nricp_amberg(source_mesh, target_mesh,
                             source_landmarks = np.asarray(source_landmarks, dtype=int),
                             target_positions = target_mesh.vertices[target_landmarks],
                             distance_threshold = max(dt,1e-6),
-                            steps = REGISTER_STEPS)
+                            steps = REGISTER_STEPS,
+                            **kwargs)
     return nrr_points
 
 
@@ -192,7 +200,7 @@ def facemesh_from_model (ssm):
     return Trimesh(ssm.vertices, ssm.triangles_only, process = False)
 
 
-def model_fit_points (ssm, targets, indices=None, landmarks=None,
+def fit_model_points (ssm, targets, indices=None, landmarks=None,
                       *, minimize="error", iterations=1, wz=0.0, wl=1.0):
     deltas = np.concatenate([ssm.gs_deltas, ssm.ga_deltas], axis=2)
     verts0 = ssm.vertices
@@ -263,7 +271,7 @@ def model_fit_points (ssm, targets, indices=None, landmarks=None,
             weighted_error)
 
 
-def cc_fit_shape (character_creator, target,
+def fit_cc_shape (character_creator, target,
                      *, mode=0, maxiter=100, **kwargs):
     cc = character_creator
     sequence = cc.sequence
