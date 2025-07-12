@@ -18,23 +18,22 @@ def view (cc, face):
     plt.show()
 
 
-def delta (cc, idx, length=1, width=1):
+def delta (cc, key, length=1):
     cc = CharacterCreator(cc)
     face = cc.models[0]
     cc.set_zero(face)
-    pxyz = face.vertices.T
-    dxyz = face.gs_deltas.dot(cc.lgs_coeffs[idx,:]).T
-    dsq = dxyz**2
-    dsq = dsq.sum(axis=0)
-    imax = dsq.argsort()[-4:]
+    tails = face.vertices.T
+
+    val0 = cc.get_control(key)
+    cc.set_control(key, val0+1.0, face)
+    arrows = face.vertices.T - tails
 
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
-    ax = fig.add_axes([0, 0, 1, 1], projection="3d")
+    ax = fig.add_subplot(projection="3d")
+    ax.set_title(cc.sliders[key].debug_label, color='w')
     facemesh_plot((face.vertices, face.triangles_only), ax)
-    ax.quiver(*pxyz, *dxyz, length=length, linewidth=width)
-    xmax, ymax, zmax = pxyz[:,imax]
-    ax.quiver(xmax,ymax,zmax,0,0,-5e-2,color="red",pivot="tip")
-    print(cc.lgs_labels[idx])
+    ax.quiver(*tails, *arrows, length=length)
+
     plt.show()
 
 
@@ -207,11 +206,10 @@ if __name__ == "__main__":
     parser_view.add_argument("cc", help="Character creator set (.zip).")
     parser_view.add_argument("face", help="Face (.fg/.csv).")
 
-    parser_view = subparsers.add_parser("delta", help="View control diff morph.")
+    parser_view = subparsers.add_parser("delta", help="View slider diff morph.")
     parser_view.add_argument("cc", help="Character creator set (.zip).")
-    parser_view.add_argument("idx", type=int, help="Control index.")
+    parser_view.add_argument("key", type=int, help="Slider key id.")
     parser_view.add_argument("--length", type=float, help="Arrows length.")
-    parser_view.add_argument("--width", type=float, help="Arrows width.")
 
     parser_f2c = subparsers.add_parser("fg2cc", help="Find slider values to match a face inside character creator.")
     parser_f2c.add_argument("cc", help="Character creator set (.zip).")
