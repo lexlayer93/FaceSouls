@@ -18,7 +18,7 @@ def view (cc, face):
     plt.show()
 
 
-def delta (cc, key, length=1):
+def diff (cc, key, length=1.0):
     cc = CharacterCreator(cc)
     face = cc.models[0]
     cc.set_zero(face)
@@ -31,7 +31,7 @@ def delta (cc, key, length=1):
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
     ax = fig.add_subplot(projection="3d")
     ax.set_title(cc.sliders[key].debug_label, color='w')
-    facemesh_plot((face.vertices, face.triangles_only), ax)
+    facemesh_plot((face.vertices0, face.triangles_only), ax)
     ax.quiver(*tails, *arrows, length=length)
 
     plt.show()
@@ -206,10 +206,10 @@ if __name__ == "__main__":
     parser_view.add_argument("cc", help="Character creator set (.zip).")
     parser_view.add_argument("face", help="Face (.fg/.csv).")
 
-    parser_view = subparsers.add_parser("delta", help="View slider diff morph.")
+    parser_view = subparsers.add_parser("diff", help="View control diff morph.")
     parser_view.add_argument("cc", help="Character creator set (.zip).")
-    parser_view.add_argument("key", type=int, help="Slider key id.")
-    parser_view.add_argument("--length", type=float, help="Arrows length.")
+    parser_view.add_argument("key", type=int, help="Control key id.")
+    parser_view.add_argument("--length", type=float, default=1.0, help="Arrows length.")
 
     parser_f2c = subparsers.add_parser("fg2cc", help="Find slider values to match a face inside character creator.")
     parser_f2c.add_argument("cc", help="Character creator set (.zip).")
@@ -247,9 +247,11 @@ if __name__ == "__main__":
     cmd = args.pop("command")
     if cmd == "view":
         view(**args)
-    elif cmd == "delta":
-        delta(**args)
+    elif cmd == "diff":
+        diff(**args)
     elif cmd == "fg2cc":
         fg2cc(**args)
     elif cmd == "fg2fg":
         fg2fg(**args)
+    else:
+        print(f"Command {cmd} not found.")

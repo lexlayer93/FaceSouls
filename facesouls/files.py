@@ -10,10 +10,10 @@ __all__ = [
     "FaceGenFIM"
     ]
 
-def struct_endian (byteorder):
-    if byteorder == "little":
+def struct_endian (endian):
+    if endian == "little":
         return '<'
-    elif byteorder == "big":
+    elif endian == "big":
         return '>'
     else:
         return '='
@@ -71,10 +71,8 @@ class BinaryParser:
 class FaceGenFile:
     magic = None
 
-    def __init__(self, src=None, *, endian=None):
-        if src is None:
-            return
-        elif isinstance(src, bytes):
+    def __init__(self, src, *, endian=None):
+        if isinstance(src, bytes):
             self.from_buffer(src, endian=endian)
         else:
             self.load(src, endian=endian)
@@ -364,6 +362,15 @@ class FaceGenFG(FaceGenFile):
     ts_data: list[int]
     ta_data: list[int]
     detail_image: bytes = b""
+
+    def __init__ (self, src=None, *, endian=None):
+        if src is not None:
+            super().__init__(src, endian=endian)
+        else:
+            self.gs_data = [0]*self.GS
+            self.ga_data = [0]*self.GA
+            self.ts_data = [0]*self.TS
+            self.ta_data = [0]*self.TA
 
     def _parse (self, parser):
         self.geo_basis_version, self.tex_basis_version = parser.ulong_(2) # Geometry & Texture Basis Versions

@@ -6,9 +6,12 @@ __all__ = [
     ]
 
 class CharacterCreator (FaceGenerator):
-    def __init__ (self, ctl, menu=None, models=None, *, preset=None, endian=None):
-        if not isinstance(ctl, bytes) and is_zipfile(ctl):
-            endian, ctl, menu, models = zip_load(ctl)
+    def __init__ (self, *files, preset=None, endian=None):
+        if len(files) == 1 and is_zipfile(files[0]):
+            endian, ctl, menu, models = zip_load(files[0])
+        else:
+            ctl, menu = files[:2] if len(files) >= 2 else files[0], None
+            models = files[2:] if len(files) > 2 else None
         super().__init__(ctl, endian=endian)
         self.all_at_once = False
         self.sliders = dict()
@@ -42,6 +45,10 @@ class CharacterCreator (FaceGenerator):
     @property
     def tabs (self):
         return {k:s.tab for k,s in self.sliders.items() if not s.debug_only}
+
+    @property
+    def face (self):
+        return self.models[0]
 
     def load_models (self, *models, endian=None):
         self.models = []
@@ -202,7 +209,7 @@ class CharacterCreator (FaceGenerator):
 
     def reset_values (self):
         for key,slider in self.sliders.items():
-            slider.value = sum(slider.float_range)/2
+            slider.value = self.get_control(key) if not slider.debug_only else sum(slider.float_range)/2.0
         self.update()
 
     def reset_sliders (self):

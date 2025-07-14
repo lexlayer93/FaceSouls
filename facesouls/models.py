@@ -11,17 +11,15 @@ __all__ = [
 
 class FaceGenSSM:
     def __init__ (self, tri=None, egm=None, fg=None, *, endian=None):
-        if tri is not None and egm is not None:
+        if tri is not None:
             self.load_shape_model(tri, egm, endian=endian)
-        else:
-            self.GS = 50
-            self.GA = 30
-            self.geo_basis_version = 0
-        if fg is not None:
-            self.load_shape_data(fg, endian=endian)
-        else:
-            self.gs_data = np.zeros(self.GS, dtype=np.float32)
-            self.ga_data = np.zeros(self.GA, dtype=np.float32)
+
+        fg = self.load_shape_data(fg, endian=endian)
+
+        if not hasattr(self, "GS"): self.GS = np.uint32(fg.GS)
+        if not hasattr(self, "GA"): self.GA = np.uint32(fg.GA)
+        if not hasattr(self, "geo_basis_version"):
+            self.geo_basis_version = fg.geo_basis_version
 
     @property
     def vertices (self):
@@ -55,7 +53,7 @@ class FaceGenSSM:
         np.copyto(self.gs_data, src.gs_data)
         np.copyto(self.ga_data, src.ga_data)
 
-    def load_shape_model (self, tri, egm, *, endian=None):
+    def load_shape_model (self, tri, egm=None, *, endian=None):
         if not isinstance(tri, FaceGenTRI):
             tri = FaceGenTRI(tri, endian=endian)
         self.vertices0 = np.array(tri.vertices, dtype=np.float32)
@@ -76,6 +74,9 @@ class FaceGenSSM:
         else:
             self.triangles_only = self.triangles
             self.uv_triangles_only = self.uv_triangles
+
+        if egm is None:
+            return tri, egm
 
         if not isinstance(egm, FaceGenEGM):
             egm = FaceGenEGM(egm, endian=endian)
@@ -102,17 +103,15 @@ class FaceGenSSM:
 
 class FaceGenSTM:
     def __init__ (self, bmp=None, egt=None, fg=None, *, endian=None):
-        if bmp is not None and egt is not None:
+        if bmp is not None:
             self.load_texture_model(bmp, egt, endian=endian)
-        else:
-            self.TS = 50
-            self.TA = 0
-            self.tex_basis_version = 0
-        if fg is not None:
-            self.load_texture_data(fg, endian=endian)
-        else:
-            self.ts_data = np.zeros(self.TS, dtype=np.float32)
-            self.ta_data = np.zeros(self.TA, dtype=np.float32)
+
+        fg = self.load_texture_data(fg, endian=endian)
+
+        if not hasattr(self, "TS"): self.TS = np.uint32(fg.TS)
+        if not hasattr(self, "TA"): self.TA = np.uint32(fg.TA)
+        if not hasattr(self, "tex_basis_version"):
+            self.tex_basis_version = fg.tex_basis_version
 
     @property
     def pixels (self):
@@ -139,9 +138,13 @@ class FaceGenSTM:
         np.copyto(self.ts_data, src.ts_data)
         np.copyto(self.ta_data, src.ta_data)
 
-    def load_texture_model (self, bmp, egt, *, endian=None):
-        img = Image.open(bmp)
-        self.pixels0 = np.asarray(img, dtype=np.float32)
+    def load_texture_model (self, bmp, egt=None, *, endian=None):
+        if not isinstance(bmp, Image):
+            bmp = Image.open(bmp)
+        self.pixels0 = np.asarray(bmp, dtype=np.float32)
+
+        if egt is None:
+            return bmp, egt
 
         if not isinstance(egt, FaceGenEGT):
             egt = FaceGenEGT(egt, endian=endian)
@@ -228,7 +231,7 @@ class FaceGenerator:
         self.lga_labels = [c.label for c in ctl.lga_controls]
         self.lts_labels = [c.label for c in ctl.lts_controls]
         self.lta_labels = [c.label for c in ctl.lta_controls]
-        self.races = ctl.races
+        self.races = ctl.races.copy()
         for race in self.races.values():
             race.age_control.gs_coeff = np.array(race.age_control.gs_coeff, dtype=np.float32)
             race.age_control.ts_coeff = np.array(race.age_control.ts_coeff, dtype=np.float32)
