@@ -10,7 +10,8 @@ class CharacterCreator (FaceGenerator):
         if len(files) == 1 and is_zipfile(files[0]):
             endian, ctl, menu, models = zip_load(files[0])
         else:
-            ctl, menu = files[:2] if len(files) >= 2 else files[0], None
+            ctl = files[0]
+            menu = files[1] if len(files) > 1 else None
             models = files[2:] if len(files) > 2 else None
         super().__init__(ctl, endian=endian)
         self.all_at_once = False

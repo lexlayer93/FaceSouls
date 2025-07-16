@@ -4,6 +4,7 @@ from scipy import optimize
 import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
 import dlib
+from trimesh import load as facemesh_load
 from trimesh.base import Trimesh, Scene
 from trimesh.proximity import closest_point
 from trimesh.registration import procrustes, icp, nricp_amberg, nricp_sumner
@@ -22,22 +23,15 @@ __all__ = [
     "facemesh_nearest_point",
     "facemesh_nearest_barycentric",
     "facemesh_from_model",
+    "facemesh_load",
     "fit_model_points",
-    "fit_cc_shape",
-    "Trimesh",
-    "Scene"
+    "fit_cc_shape"
     ]
 
 current_dir = os.path.dirname(__file__)
 DLIB_PREDICTOR_PATH = os.path.join(current_dir, "shape_predictor_68_face_landmarks.dat")
 DLIB_DETECTOR = None
 DLIB_PREDICTOR = None
-REGISTER_STEPS = [
-    (0.1, 10, 0.01, 10),
-    (0.2, 5, 0.01, 10),
-    (0.3, 2, 0.01, 10),
-    (0.1, 0, 0.01, 10)
-    ]
 
 
 def facemesh_plot (mesh, ax,
@@ -146,7 +140,6 @@ def facemesh_register (source_mesh, target_mesh,
                             source_landmarks = np.asarray(source_landmarks, dtype=int),
                             target_positions = target_mesh.vertices[target_landmarks],
                             distance_threshold = max(dt,1e-6),
-                            steps = REGISTER_STEPS,
                             **kwargs)
     return nrr_points
 
@@ -259,7 +252,7 @@ def fit_model_points (ssm, targets, indices=None, landmarks=None,
 
     fit = Dinv.dot((verts - verts0).flatten())
 
-    weighted_error = np.sum((verts0 + np.dot(deltas,fit) - verts)**2)
+    weighted_error = np.sum((verts0 + np.dot(deltas,fit) - verts)**2)/np.sum(weights**2)
 
     transformation = compose_matrix(scale=(kt,kt,kt), angles=(at,bt,ct), translate=(xt,yt,zt))
 

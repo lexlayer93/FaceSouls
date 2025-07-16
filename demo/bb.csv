@@ -1,0 +1,96 @@
+# Bloodborne Character Creator Menu
+# ID, tab, label, debug min, debug max, gui min, gui max
+010, Features, Apparent Age, 15, 60, 0, 255;
+020, Features, Facial Aesthetic, -4, 4, 0, 255;
+030, Features, Form Emphasis, 0, 2, 0, 255;
+119, Facial Balance, Nose Size, -10, 10, 0, 255;
+120, Facial Balance, Nose/Forehead Ratio, -10, 10, 0, 255;
+122, Facial Balance, Face Protrusion, -10, 10, 0, 255;
+123, Facial Balance, Vert. Facial Spacing, -10, 10, 0, 255;
+124, Facial Balance, Facial Feature Slant, -10, 10, 0, 255;
+125, Facial Balance, Horiz. Facial Spacing, -10, 10, 0, 255;
+127, Forehead/Glabella, Forehead Depth, -5, 5, 0, 255;
+128, Forehead/Glabella, Forehead Protrusion, -5, 5, 0, 255;
+154, Forehead/Glabella, Nose Bridge Height, -10, 10, 0, 255;
+155, Forehead/Glabella, Bridge Protrusion 1, -10, 10, 0, 255;
+156, Forehead/Glabella, Bridge Protrusion 2, -10, 10, 0, 255;
+157, Forehead/Glabella, Nose Bridge Width, -10, 10, 0, 255;
+100, Brow Ridge, Brow Ridge Height, -10, 10, 0, 255;
+101, Brow Ridge, Inner Brow Ridge, -10, 10, 0, 255;
+102, Brow Ridge, Outer Brow Ridge, -10, 10, 0, 255;
+115, Eyes, Eye Position, -10, 10, 0, 255;
+116, Eyes, Eye Size, -10, 10, 0, 255;
+117, Eyes, Eye Slant, -10, 10, 0, 255;
+118, Eyes, Eye Spacing, -10, 10, 0, 255;
+146, Nose Ridge, Nose Ridge Depth, -10, 10, 0, 255;
+147, Nose Ridge, Nose Ridge Length, -10, 10, 0, 255;
+148, Nose Ridge, Nose Position, -10, 10, 0, 255;
+149, Nose Ridge, Nose Tip Height, -10, 10, 0, 255;
+153, Nose Ridge, Nose Protrusion, -10, 10, 0, 255;
+158, Nose Ridge, Nose Height, -10, 10, 0, 255;
+159, Nose Ridge, Nose Slant, -10, 10, 0, 255;
+150, Nostrils, Nostril Slant, -10, 10, 0, 255;
+151, Nostrils, Nostril Size, -10, 10, 0, 255;
+152, Nostrils, Nostril Width, -10, 10, 0, 255;
+229, Nostrils, Nasal Size, 0, 10, 0, 255;
+103, Cheeks, Cheekbone Height, -10, 10, 0, 255;
+104, Cheeks, Cheekbone Depth, -10, 10, 0, 255;
+105, Cheeks, Cheekbone Width, -10, 10, 0, 255;
+106, Cheeks, Cheekbone Protrusion, -10, 10, 0, 255;
+107, Cheeks, Cheek Thickness, -10, 10, 0, 255;
+134, Lips, Lip Shape, -10, 10, 0, 255;
+135, Lips, Mouth Expression, -10, 10, 0, 255;
+136, Lips, Lip Fullness, -10, 10, 0, 255;
+137, Lips, Lip Size, -10, 10, 0, 255;
+138, Lips, Lip Protrusion, -10, 10, 0, 255;
+139, Lips, Lip Thickness, -10, 10, 0, 255;
+140, Mouth, Mouth Protrusion, -10, 10, 0, 255;
+141, Mouth, Mouth Slant, -10, 10, 0, 255;
+142, Mouth, Occlusion, -10, 10, 0, 255;
+143, Mouth, Mouth Position, -10, 10, 0, 255;
+144, Mouth, Mouth Width, -10, 10, 0, 255;
+145, Mouth, Mouth-Chin Distance, -10, 10, 0, 255;
+108, Chin, Chin Tip Position, -10, 10, 0, 255;
+109, Chin, Chin Length, -10, 10, 0, 255;
+110, Chin, Chin Protrusion, -10, 10, 0, 255;
+111, Chin, Chin Depth, -10, 10, 0, 255;
+112, Chin, Chin Size, -10, 10, 0, 255;
+113, Chin, Chin Height, -10, 10, 0, 255;
+114, Chin, Chin Width, -10, 10, 0, 255;
+130, Jaw, Jaw Protrusion, -10, 10, 0, 255;
+131, Jaw, Jaw Width, -5, 5, 0, 255;
+132, Jaw, Lower Jaw, -5, 5, 0, 255;
+133, Jaw, Jaw Contour, -10, 10, 0, 255;
+232, Skin Color, Skin Tone, -0.5, 0.5, 0, 255;
+233, Skin Color, Skin Color Layer 1, -2, 2, 0, 255;
+234, Skin Color, Skin Color Layer 2, -4, 5, 0, 255;
+235, Skin Color, Skin Color Layer 3, -4, 0, 0, 255;
+231, Skin Color, Skin Color Layer 4, -10, 10, 0, 255;
+230, Skin Color, Nose Bridge Color, -10, 10, 0, 255;
+206, Skin Color, Cheek Color, -10, 10, 0, 255;
+228, Skin Color, Laugh Lines, -10, 10, 0, 255;
+207, Cosmetics, Tone around eyes, -10, 10, 0, 255;
+208, Cosmetics, Eye Socket, -10, 10, 0, 255;
+218, Cosmetics, Eyelid Brightness, -10, 10, 0, 255;
+219, Cosmetics, Eyelid Color, -10, 10, 0, 255;
+220, Cosmetics, Eyeliner, -10, 10, 0, 255;
+221, Cosmetics, Eye Shadow, -10, 10, 0, 255;
+226, Cosmetics, Lipstick 1, -10, 10, 0, 255;
+227, Cosmetics, Lipstick 2, -10, 10, 0, 255;
+>>>, 010, 020, 030,
+119, 120, 121, 122, 123, 124, 125,
+126, 127, 128, 154, 155, 156, 157,
+100, 101, 102,
+115, 116, 117, 118,
+146, 147, 148, 149, 153, 158, 159,
+150, 151, 152,
+103, 104, 105, 106, 107,
+134, 135, 136, 137, 138, 139,
+140, 141, 142, 143, 144, 145,
+108, 109, 110, 111, 112, 113, 114,
+130, 131, 132, 133,
+231, 232, 233, 234, 235, 230, 206,
+207, 208, 218, 219, 220, 221,
+229, 228, 225, 226, 227;
+>1<, -7.142857552, 7.142857552;
+>2<, -17.8571434, 17.8571434;

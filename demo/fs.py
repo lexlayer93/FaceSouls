@@ -106,7 +106,7 @@ def fg2cc (cc, src, dst=None, *, preset=None,
 
 def fg2fg (cc1, cc2, src, dst=None, *,
            light=25, depth=0.0,
-           height=0.1, dist=1.0,
+           height=0.2, dist=1.0,
            wl=2.0, wz=0.2, nit=2, minimize="error",
            unsafe=False, force=False,
            show=False, show_lm=False, rotate=0):
@@ -198,6 +198,81 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     plt.show()
 
 
+def obj2fg (cc, src, dst=None,
+            light=25, depth=0.0,
+            height=0.2, dist=1.0,
+            wl=2.0, wz=0.2, nit=2, minimize="effort",
+            force=False,
+            show=False, show_lm=False, rotate=0):
+    cc = CharacterCreator(cc)
+    cc.set_zero(cc.face)
+    mesh1 = facemesh_load(src, force="mesh")
+    mesh2 = facemesh_from_model(cc.face)
+    sliced1 = facemesh_slice_depth(mesh1, k=depth)
+
+    sliced2 = facemesh_slice_depth(mesh2, k=depth)
+    lm1 = facemesh_landmarks(sliced1, light_alt=light)[:60]
+    lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
+    lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
+    lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
+    cropped1 = facemesh_crop(mesh1, lm1, y_tol=height)
+    cropped2 = facemesh_crop(mesh2, lm2, y_tol=height)
+    lm1c = facemesh_nearest_vertex(cropped1, mesh1.vertices[lm1])
+    lm2c = facemesh_nearest_vertex(cropped2, mesh2.vertices[lm2])
+    cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
+    targets = facemesh_register(cropped2, cropped1, lm2c, lm1c, k=dist)
+    indices = facemesh_nearest_vertex(mesh2, cropped2.vertices)
+    if force:
+        targets = facemesh_nearest_point(cropped1, targets)
+
+    facefit, _, err = fit_model_points(cc.face, targets, indices, lm2,
+                                     wl=wl, wz=wz,
+                                     iterations=nit,
+                                     minimize=minimize)
+    facefit.ga_data.fill(0.0)
+
+    print("Error:", err)
+
+    if dst is not None:
+        facefit.save_data(dst)
+
+    if not show:
+        return
+
+    fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
+    ax = fig.add_subplot(2, 2, 1, projection='3d')
+    ax.set_title("Target", color='w')
+    facemesh_plot(cropped1, ax, rotation=rotate, light_alt=light)
+    if show_lm:
+        x, y, z = cropped1.vertices[lm1c,:].T
+        ax.scatter(x, y, z+1e-3, color="red", marker='o')
+
+    ax = fig.add_subplot(2, 2, 3, projection='3d')
+    ax.set_title("Model", color='w')
+    facemesh_plot(cropped2, ax, rotation=rotate, light_alt=light)
+    if show_lm:
+        x, y, z = cropped2.vertices[lm2c,:].T
+        ax.scatter(x, y, z+1e-3, color="red", marker='o')
+
+    ax = fig.add_subplot(2, 2, 4, projection='3d')
+    ax.set_title("Deformation", color='w')
+    facemesh_plot((targets, cropped2.faces), ax,
+                  rotation=rotate, light_alt=light)
+    if show_lm:
+        x, y, z = targets[lm2c,:].T
+        ax.scatter(x, y, z+1e-3, color='red', marker='o')
+
+    ax = fig.add_subplot(2, 2, 2, projection='3d')
+    ax.set_title("Closest", color='w')
+    facemesh_plot((facefit.vertices, facefit.triangles_only), ax,
+                  rotation=rotate, light_alt=light)
+    if show_lm:
+        x, y, z = facefit.vertices[lm2,:].T
+        ax.scatter(x, y, z+1e-3, color='red', marker='o')
+
+    plt.show()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -206,10 +281,10 @@ if __name__ == "__main__":
     parser_view.add_argument("cc", help="Character creator set (.zip).")
     parser_view.add_argument("face", help="Face (.fg/.csv).")
 
-    parser_view = subparsers.add_parser("diff", help="View control diff morph.")
-    parser_view.add_argument("cc", help="Character creator set (.zip).")
-    parser_view.add_argument("key", type=int, help="Control key id.")
-    parser_view.add_argument("--length", type=float, default=1.0, help="Arrows length.")
+    parser_diff = subparsers.add_parser("diff", help="View control diff morph.")
+    parser_diff.add_argument("cc", help="Character creator set (.zip).")
+    parser_diff.add_argument("key", type=int, help="Control key id.")
+    parser_diff.add_argument("--length", type=float, default=1.0, help="Arrows length.")
 
     parser_f2c = subparsers.add_parser("fg2cc", help="Find slider values to match a face inside character creator.")
     parser_f2c.add_argument("cc", help="Character creator set (.zip).")
@@ -229,17 +304,34 @@ if __name__ == "__main__":
     parser_f2f.add_argument("dst", nargs='?', default=None, help="Output, optimal face (.fg).")
     parser_f2f.add_argument("--light", type=float, default=25.0, help="Light source elevation.")
     parser_f2f.add_argument("--depth", type=float, default=0.0, help="Face outline, further ahead (+) or further back (-).")
-    parser_f2f.add_argument("--height", type=float, default=0.1, help="Vertical cropping tolerance.")
+    parser_f2f.add_argument("--height", type=float, default=0.2, help="Vertical cropping tolerance.")
     parser_f2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent for mesh registration.")
     parser_f2f.add_argument("--wl", type=float, default=2.0, help="Landmarks relative weight.")
     parser_f2f.add_argument("--wz", type=float, default=0.2, help="Z-weight control.")
     parser_f2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
-    parser_f2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Z-weight control.")
+    parser_f2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Minimize error for accuracy, effort for smoothness.")
     parser_f2f.add_argument("--unsafe", action="store_true", help="Unsafe landmark detection.")
     parser_f2f.add_argument("--force", action="store_true", help="Force geometry after registration.")
     parser_f2f.add_argument("--show", action="store_true", help="Show target/replica faces.")
     parser_f2f.add_argument("--show_lm", action="store_true", help="Show landmarks (do not use with --hide).")
     parser_f2f.add_argument("--rotate", type=float, default=0.0, help="90 degrees for side view.")
+
+    parser_o2f = subparsers.add_parser("obj2fg", help="Convert a face mesh to FaceGen.")
+    parser_o2f.add_argument("cc", help="Source character creator set (.zip).")
+    parser_o2f.add_argument("src", help="Input, target mesh (.obj).")
+    parser_o2f.add_argument("dst", nargs='?', default=None, help="Output, optimal face (.fg).")
+    parser_o2f.add_argument("--light", type=float, default=25.0, help="Light source elevation.")
+    parser_o2f.add_argument("--depth", type=float, default=0.0, help="Face outline, further ahead (+) or further back (-).")
+    parser_o2f.add_argument("--height", type=float, default=0.2, help="Vertical cropping tolerance.")
+    parser_o2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent for mesh registration.")
+    parser_o2f.add_argument("--wl", type=float, default=2.0, help="Landmarks relative weight.")
+    parser_o2f.add_argument("--wz", type=float, default=0.2, help="Z-weight control.")
+    parser_o2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
+    parser_o2f.add_argument("--minimize", choices=["error", "effort"], default="effort", help="Minimize error for accuracy, effort for smoothness.")
+    parser_o2f.add_argument("--force", action="store_true", help="Force geometry after registration.")
+    parser_o2f.add_argument("--show", action="store_true", help="Show target/replica faces.")
+    parser_o2f.add_argument("--show_lm", action="store_true", help="Show landmarks (do not use with --hide).")
+    parser_o2f.add_argument("--rotate", type=float, default=0.0, help="90 degrees for side view.")
 
     args = parser.parse_args()
 
@@ -253,5 +345,7 @@ if __name__ == "__main__":
         fg2cc(**args)
     elif cmd == "fg2fg":
         fg2fg(**args)
+    elif cmd == "obj2fg":
+        obj2fg(**args)
     else:
         print(f"Command {cmd} not found.")
