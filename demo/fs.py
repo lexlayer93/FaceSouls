@@ -107,8 +107,9 @@ def fg2cc (cc, src, dst=None, *, preset=None,
 def fg2fg (cc1, cc2, src, dst=None, *,
            light=25, depth=0.0,
            height=0.2, dist=1.0,
-           wl=2.0, wz=0.2, nit=2, minimize="error",
-           unsafe=False, force=False,
+           wl=2.0, wz=0.2, wx=0.0,
+           nit=2, minimize="error",
+           unsafe=False, force=False, sym=False,
            show=False, show_lm=False, rotate=0):
     cc1 = CharacterCreator(cc1)
     cc2 = CharacterCreator(cc2)
@@ -125,8 +126,8 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     mesh2 = facemesh_from_model(face2)
     sliced1 = facemesh_slice_depth(mesh1, k=depth)
     sliced2 = facemesh_slice_depth(mesh2, k=depth)
-    lm1 = facemesh_landmarks(sliced1, light_alt=light)[:60]
-    lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
+    lm1 = facemesh_landmarks(sliced1, light_alt=light)
+    lm2 = facemesh_landmarks(sliced2, light_alt=light)
     lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
     lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
 
@@ -147,10 +148,11 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     if force:
         targets = facemesh_nearest_point(cropped1, targets)
 
-    face3, _, err = fit_model_points(face2, targets, indices, lm2,
-                                     wl=wl, wz=wz,
+    face3, _, err = fit_model_points(face2, targets, indices, lm2[:60],
+                                     wl=wl, wz=wz, wx=wx,
                                      iterations=nit,
-                                     minimize=minimize)
+                                     minimize=minimize,
+                                     asymmetry=not sym)
     face3.ga_data.fill(0.0)
 
     print("Error:", err)
@@ -201,8 +203,8 @@ def fg2fg (cc1, cc2, src, dst=None, *,
 def obj2fg (cc, src, dst=None,
             light=25, depth=0.0,
             height=0.2, dist=1.0,
-            wl=2.0, wz=0.2, nit=2, minimize="effort",
-            force=False,
+            wl=2.0, wz=0.2, wx=0.0, nit=2, minimize="error",
+            force=False, sym=False,
             show=False, show_lm=False, rotate=0):
     cc = CharacterCreator(cc)
     cc.set_zero(cc.face)
@@ -211,8 +213,8 @@ def obj2fg (cc, src, dst=None,
     sliced1 = facemesh_slice_depth(mesh1, k=depth)
 
     sliced2 = facemesh_slice_depth(mesh2, k=depth)
-    lm1 = facemesh_landmarks(sliced1, light_alt=light)[:60]
-    lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
+    lm1 = facemesh_landmarks(sliced1, light_alt=light)
+    lm2 = facemesh_landmarks(sliced2, light_alt=light)
     lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
     lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
     cropped1 = facemesh_crop(mesh1, lm1, y_tol=height)
@@ -225,13 +227,14 @@ def obj2fg (cc, src, dst=None,
     if force:
         targets = facemesh_nearest_point(cropped1, targets)
 
-    facefit, _, err = fit_model_points(cc.face, targets, indices, lm2,
-                                     wl=wl, wz=wz,
+    facefit, _, err = fit_model_points(cc.face, targets, indices, lm2[:60],
+                                     wl=wl, wz=wz, wx=wx,
                                      iterations=nit,
-                                     minimize=minimize)
-    facefit.ga_data.fill(0.0)
+                                     minimize=minimize,
+                                     asymmetry=not sym)
 
-    print("Error:", err)
+    print("# Error:", err)
+    print("# Solution:", facefit.gs_data)
 
     if dst is not None:
         facefit.save_data(dst)
@@ -268,7 +271,7 @@ def obj2fg (cc, src, dst=None,
                   rotation=rotate, light_alt=light)
     if show_lm:
         x, y, z = facefit.vertices[lm2,:].T
-        ax.scatter(x, y, z+1e-3, color='red', marker='o')
+        ax.scatter(x, y, z+1e-3, color='red', marker='x')
 
     plt.show()
 
@@ -308,10 +311,12 @@ if __name__ == "__main__":
     parser_f2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent for mesh registration.")
     parser_f2f.add_argument("--wl", type=float, default=2.0, help="Landmarks relative weight.")
     parser_f2f.add_argument("--wz", type=float, default=0.2, help="Z-weight control.")
+    parser_f2f.add_argument("--wx", type=float, default=0.0, help="Width weight control.")
     parser_f2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
     parser_f2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Minimize error for accuracy, effort for smoothness.")
     parser_f2f.add_argument("--unsafe", action="store_true", help="Unsafe landmark detection.")
     parser_f2f.add_argument("--force", action="store_true", help="Force geometry after registration.")
+    parser_f2f.add_argument("--sym", action="store_true", help="Symmetryc only.")
     parser_f2f.add_argument("--show", action="store_true", help="Show target/replica faces.")
     parser_f2f.add_argument("--show_lm", action="store_true", help="Show landmarks (do not use with --hide).")
     parser_f2f.add_argument("--rotate", type=float, default=0.0, help="90 degrees for side view.")
@@ -325,10 +330,12 @@ if __name__ == "__main__":
     parser_o2f.add_argument("--height", type=float, default=0.2, help="Vertical cropping tolerance.")
     parser_o2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent for mesh registration.")
     parser_o2f.add_argument("--wl", type=float, default=2.0, help="Landmarks relative weight.")
-    parser_o2f.add_argument("--wz", type=float, default=0.2, help="Z-weight control.")
+    parser_o2f.add_argument("--wz", type=float, default=0.2, help="Depth weight control.")
+    parser_o2f.add_argument("--wx", type=float, default=0.0, help="Width weight control.")
     parser_o2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
-    parser_o2f.add_argument("--minimize", choices=["error", "effort"], default="effort", help="Minimize error for accuracy, effort for smoothness.")
+    parser_o2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Minimize error for accuracy, effort for smoothness.")
     parser_o2f.add_argument("--force", action="store_true", help="Force geometry after registration.")
+    parser_o2f.add_argument("--sym", action="store_true", help="Symmetryc only.")
     parser_o2f.add_argument("--show", action="store_true", help="Show target/replica faces.")
     parser_o2f.add_argument("--show_lm", action="store_true", help="Show landmarks (do not use with --hide).")
     parser_o2f.add_argument("--rotate", type=float, default=0.0, help="90 degrees for side view.")

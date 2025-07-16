@@ -194,25 +194,39 @@ def facemesh_from_model (ssm):
 
 
 def fit_model_points (ssm, targets, indices=None, landmarks=None,
-                      *, minimize="error", iterations=1, wz=0.0, wl=1.0):
-    deltas = np.concatenate([ssm.gs_deltas, ssm.ga_deltas], axis=2)
+                      *, minimize="error", asymmetry=True,
+                      iterations=1, wz=0.0, wx=0.0, wl=1.0):
+    if asymmetry:
+        deltas = np.concatenate([ssm.gs_deltas, ssm.ga_deltas], axis=2)
+    else:
+        deltas = np.copy(ssm.gs_deltas)
+
     verts0 = ssm.vertices
     verts = np.copy(verts0)
 
-    nv = verts0.shape[0]
+    nv, ndim = verts0.shape
 
     if indices is None: indices = np.arange(nv)
     verts[indices] = targets
 
-    weights = np.zeros(nv, dtype=np.float32)
-    z_min, z_max = np.min(targets[:,2]), np.max(targets[:,2])
-    weights[indices] = np.power((targets[:,2] - z_min)/(z_max-z_min), wz)
-    if landmarks is not None:
-        weights[landmarks] *= wl
+    weights = np.zeros((nv,ndim), dtype=np.float32)
+    weights[indices,:] = 1.0
 
-    deltas *= weights[:,np.newaxis,np.newaxis]
-    verts *= weights[:,np.newaxis]
-    verts0 *= weights[:,np.newaxis]
+    targets_z = targets[:,2] - verts[:,2].min()
+    targets_z /= targets_z.max()
+    weights[indices,2] *= np.power(targets_z, wz) if wz >= 0 else np.power(1-targets_z,-wz)
+
+    targets_x = targets[:,0] - np.mean(verts0[:,0])
+    targets_x = np.abs(targets_x)
+    targets_x /= targets_x.max()
+    weights[indices,0] *= np.power(targets_x, wx) if wx >= 0 else np.power(1-targets_x,-wx)
+
+    if landmarks is not None:
+        weights[landmarks,:2] *= wl
+
+    deltas *= weights[:,:,None]
+    verts *= weights
+    verts0 *= weights
 
     ns = deltas.shape[2]
     D = deltas.reshape(-1, ns)
@@ -228,7 +242,7 @@ def fit_model_points (ssm, targets, indices=None, landmarks=None,
         Sx = np.array([[0, 0, 0],[0,0,-1],[0,1,0]], dtype = np.float32)
         Sy = np.array([[0, 0, 1],[0,0,0],[-1,0,0]], dtype = np.float32)
         Sz = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]], dtype = np.float32)
-        exyz = np.kron(weights, np.eye(3)).T
+        exyz = (weights[:,:,None] * np.eye(3)).reshape(-1,3)
 
     xt, yt, zt, at, bt, ct, kt = np.zeros(7, dtype=np.float32)
     for _ in range(iterations):
@@ -247,7 +261,7 @@ def fit_model_points (ssm, targets, indices=None, landmarks=None,
         Rx = np.array([[1, 0, 0],[0, np.cos(a), -np.sin(a)],[0, np.sin(a), np.cos(a)]], dtype=np.float32)
         R = Rz @ Ry @ Rx
 
-        verts = (1+k)*verts.dot(R.T) + np.kron(weights,[x,y,z]).reshape(-1,3)
+        verts = (1+k)*verts.dot(R.T) + np.multiply(weights,[x,y,z])
         xt, yt, zt, at, bt, ct, kt = xt+x, yt+y, zt+z, at+a, bt+b, ct+c, kt+k
 
     fit = Dinv.dot((verts - verts0).flatten())
@@ -258,7 +272,11 @@ def fit_model_points (ssm, targets, indices=None, landmarks=None,
 
     best = ssm.copy()
     best.gs_data += fit[:ssm.GS]
-    best.ga_data += fit[ssm.GS:]
+    if asymmetry:
+        best.ga_data += fit[ssm.GS:]
+    else:
+        best.ga_data.fill(0.0)
+
     return (best,
             transformation,
             weighted_error)
