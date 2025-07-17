@@ -24,8 +24,8 @@ __all__ = [
     "facemesh_nearest_barycentric",
     "facemesh_from_model",
     "facemesh_load",
-    "fit_model_points",
-    "fit_cc_shape"
+    "fit_mesh",
+    "fit_model"
     ]
 
 current_dir = os.path.dirname(__file__)
@@ -35,12 +35,12 @@ DLIB_PREDICTOR = None
 
 
 def facemesh_plot (mesh, ax,
-                   *, persp="persp", rotation=0, light_alt=20,
+                   *, persp="persp", rotation=0, light_alt=25,
                    **kwargs):
-    try:
+    if isinstance(mesh, Trimesh):
         vertices = mesh.vertices
         triangles = mesh.faces
-    except AttributeError:
+    else:
         vertices, triangles = mesh
 
     kwargs.setdefault("color", "peachpuff")
@@ -71,10 +71,10 @@ def facemesh_landmarks (mesh, **kwargs):
     if DLIB_PREDICTOR is None:
         DLIB_PREDICTOR = dlib.shape_predictor(DLIB_PREDICTOR_PATH)
 
-    try:
+    if isinstance(mesh, Trimesh):
         vertices = mesh.vertices
         triangles = mesh.faces
-    except AttributeError:
+    else:
         vertices, triangles = mesh
 
     fig = plt.figure(facecolor='k', dpi=300)
@@ -193,9 +193,10 @@ def facemesh_from_model (ssm):
     return Trimesh(ssm.vertices, ssm.triangles_only, process = False)
 
 
-def fit_model_points (ssm, targets, indices=None, landmarks=None,
-                      *, minimize="error", asymmetry=True,
-                      iterations=1, wz=0.0, wx=0.0, wl=1.0):
+def fit_mesh (ssm, targets, *,
+              indices=None, landmarks=None,
+              minimize="error", asymmetry=True, iterations=1,
+              wz=0.0, wx=0.0, wl=1.0):
     if asymmetry:
         deltas = np.concatenate([ssm.gs_deltas, ssm.ga_deltas], axis=2)
     else:
@@ -213,6 +214,7 @@ def fit_model_points (ssm, targets, indices=None, landmarks=None,
     weights[indices,:] = 1.0
 
     targets_z = targets[:,2] - verts[:,2].min()
+    targets_z = np.clip(targets_z, 0.0, None)
     targets_z /= targets_z.max()
     weights[indices,2] *= np.power(targets_z, wz) if wz >= 0 else np.power(1-targets_z,-wz)
 
@@ -282,8 +284,8 @@ def fit_model_points (ssm, targets, indices=None, landmarks=None,
             weighted_error)
 
 
-def fit_cc_shape (character_creator, target,
-                     *, mode=0, maxiter=100, **kwargs):
+def fit_model (character_creator, target_model,
+               *, mode=0, maxiter=100, **kwargs):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.menu.values() for key in tab]
@@ -310,6 +312,7 @@ def fit_cc_shape (character_creator, target,
 
     # initial state before shape sliders
     replica = cc.models[0].copy()
+
     if cc.all_at_once:
         preseq = {k:cc.sliders[k].value for k in sequence if k < 100}
         cc.set_zero(replica)
@@ -319,13 +322,14 @@ def fit_cc_shape (character_creator, target,
         preseq = dict()
 
     s0 = Nt.dot(replica.gs_data)
-    st = target.gs_data
+    st = target_model.gs_data
+    smin, smax = cc.shape_sym_range
+
 
     # faster sequence, with clip
     def apply_seq (p):
-        return np.clip(s0 + mfit.dot(p), *cc.shape_sym_range)
+        return np.clip(s0 + mfit.dot(p), smin, smax)
 
-    smin, smax = cc.shape_sym_range
     def in_range (p):
         s = apply_seq(p)
         onezero = np.where((s>=smin) & (s <=smax), 1.0, 0.0)

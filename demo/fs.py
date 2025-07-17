@@ -50,7 +50,7 @@ def fg2cc (cc, src, dst=None, *, preset=None,
         else:
             cc.load_values(preset)
 
-    solution, replica, info = fit_cc_shape(cc, target, mode=mode, maxiter=maxit)
+    solution, replica, info = fit_model(cc, target, mode=mode, maxiter=maxit)
     replica.ga_data.fill(0.0)
 
     if how:
@@ -91,7 +91,7 @@ def fg2cc (cc, src, dst=None, *, preset=None,
     if not show:
         return
 
-    fig = plt.figure(figsize=plt.figaspect(0.5), facecolor='k', dpi=100)
+    fig = plt.figure(figsize=plt.figaspect(1/2), facecolor='k', dpi=100)
 
     ax = fig.add_subplot(1, 2, 1, projection='3d')
     ax.set_title("Target", color='w')
@@ -109,7 +109,7 @@ def fg2fg (cc1, cc2, src, dst=None, *,
            height=0.2, dist=1.0,
            wl=2.0, wz=0.2, wx=0.0,
            nit=2, minimize="error",
-           unsafe=False, force=False, sym=False,
+           force=False, sym=False,
            show=False, show_lm=False, rotate=0):
     cc1 = CharacterCreator(cc1)
     cc2 = CharacterCreator(cc2)
@@ -118,24 +118,19 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     cc1.set_zero(face1)
     cc2.set_zero(face2)
 
-    if unsafe:
-        face1.load_data(src)
-        face2.load_data(src)
-
     mesh1 = facemesh_from_model(face1)
     mesh2 = facemesh_from_model(face2)
     sliced1 = facemesh_slice_depth(mesh1, k=depth)
     sliced2 = facemesh_slice_depth(mesh2, k=depth)
-    lm1 = facemesh_landmarks(sliced1, light_alt=light)
-    lm2 = facemesh_landmarks(sliced2, light_alt=light)
+    lm1 = facemesh_landmarks(sliced1, light_alt=light)[:60]
+    lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
     lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
     lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
 
-    if not unsafe:
-        face1.load_data(src)
-        face2.load_data(src)
-        mesh1 = facemesh_from_model(face1)
-        mesh2 = facemesh_from_model(face2)
+    face1.load_data(src)
+    face2.load_data(src)
+    mesh1.vertices = face1.vertices
+    mesh2.vertices = face2.vertices
 
     cropped1 = facemesh_crop(mesh1, lm1, y_tol=height)
     cropped2 = facemesh_crop(mesh2, lm2, y_tol=height)
@@ -148,14 +143,17 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     if force:
         targets = facemesh_nearest_point(cropped1, targets)
 
-    face3, _, err = fit_model_points(face2, targets, indices, lm2[:60],
-                                     wl=wl, wz=wz, wx=wx,
-                                     iterations=nit,
-                                     minimize=minimize,
-                                     asymmetry=not sym)
+    face3, _, err = fit_mesh(face2, targets,
+                            indices=indices,
+                            landmarks=lm2,
+                            wl=wl, wz=wz, wx=wx,
+                            iterations=nit,
+                            minimize=minimize,
+                            asymmetry=not sym)
     face3.ga_data.fill(0.0)
 
-    print("Error:", err)
+    print("# Error:", err)
+    print("# Solution:", face3.gs_data)
 
     if dst is not None:
         face3.save_data(dst)
@@ -163,39 +161,21 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     if not show:
         return
 
+    plotting = [
+        (1, "Target", cropped1.vertices, cropped1.faces, lm1c),
+        (2, "Closest", face3.vertices, face3.triangles_only, lm2),
+        (3, "Same data", cropped2.vertices, cropped2.faces, lm2c),
+        (4, "Deformation", targets, cropped2.faces, lm2c)
+        ]
+
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
-
-    ax = fig.add_subplot(2, 2, 1, projection='3d')
-    ax.set_title("Target", color='w')
-    facemesh_plot(cropped1, ax, rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = cropped1.vertices[lm1c,:].T
-        print(x.min(),x.max())
-        ax.scatter(x, y, z+1e-3, color="red", marker='o')
-
-    ax = fig.add_subplot(2, 2, 3, projection='3d')
-    ax.set_title("Same data", color='w')
-    facemesh_plot(cropped2, ax, rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = cropped2.vertices[lm2c,:].T
-        print(x.min(),x.max())
-        ax.scatter(x, y, z+1e-3, color="red", marker='o')
-
-    ax = fig.add_subplot(2, 2, 2, projection='3d')
-    ax.set_title("Closest geometry", color='w')
-    facemesh_plot((face3.vertices, face3.triangles_only), ax,
-                  rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = face3.vertices[lm2,:].T
-        ax.scatter(x, y, z+1e-3, color='red', marker='o')
-
-    ax = fig.add_subplot(2, 2, 4, projection='3d')
-    ax.set_title("Deformation", color='w')
-    facemesh_plot((targets, cropped2.faces), ax,
-                  rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = targets[lm2c,:].T
-        ax.scatter(x, y, z+1e-3, color='red', marker='o')
+    for idx, title, verts, tris, lms in plotting:
+        ax = fig.add_subplot(2, 2, idx, projection="3d")
+        ax.set_title(title, color="w")
+        facemesh_plot((verts, tris), ax, rotation=rotate, light_alt=light)
+        if show_lm:
+            x, y, z = verts[lms,:].T
+            ax.scatter(x, y, z+1e-3, color="red", marker='x')
 
     plt.show()
 
@@ -213,8 +193,8 @@ def obj2fg (cc, src, dst=None,
     sliced1 = facemesh_slice_depth(mesh1, k=depth)
 
     sliced2 = facemesh_slice_depth(mesh2, k=depth)
-    lm1 = facemesh_landmarks(sliced1, light_alt=light)
-    lm2 = facemesh_landmarks(sliced2, light_alt=light)
+    lm1 = facemesh_landmarks(sliced1, light_alt=light)[:60]
+    lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
     lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
     lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
     cropped1 = facemesh_crop(mesh1, lm1, y_tol=height)
@@ -227,11 +207,13 @@ def obj2fg (cc, src, dst=None,
     if force:
         targets = facemesh_nearest_point(cropped1, targets)
 
-    facefit, _, err = fit_model_points(cc.face, targets, indices, lm2[:60],
-                                     wl=wl, wz=wz, wx=wx,
-                                     iterations=nit,
-                                     minimize=minimize,
-                                     asymmetry=not sym)
+    facefit, _, err = fit_mesh(cc.face, targets,
+                               indices=indices,
+                               landmarks=lm2,
+                               wl=wl, wz=wz, wx=wx,
+                               iterations=nit,
+                               minimize=minimize,
+                               asymmetry=not sym)
 
     print("# Error:", err)
     print("# Solution:", facefit.gs_data)
@@ -242,36 +224,21 @@ def obj2fg (cc, src, dst=None,
     if not show:
         return
 
+    plotting = [
+        (1, "Target", cropped1.vertices, cropped1.faces, lm1c),
+        (2, "Closest", facefit.vertices, facefit.triangles_only, lm2),
+        (3, "Model", cropped2.vertices, cropped2.faces, lm2c),
+        (4, "Deformation", targets, cropped2.faces, lm2c)
+        ]
+
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
-    ax = fig.add_subplot(2, 2, 1, projection='3d')
-    ax.set_title("Target", color='w')
-    facemesh_plot(cropped1, ax, rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = cropped1.vertices[lm1c,:].T
-        ax.scatter(x, y, z+1e-3, color="red", marker='o')
-
-    ax = fig.add_subplot(2, 2, 3, projection='3d')
-    ax.set_title("Model", color='w')
-    facemesh_plot(cropped2, ax, rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = cropped2.vertices[lm2c,:].T
-        ax.scatter(x, y, z+1e-3, color="red", marker='o')
-
-    ax = fig.add_subplot(2, 2, 4, projection='3d')
-    ax.set_title("Deformation", color='w')
-    facemesh_plot((targets, cropped2.faces), ax,
-                  rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = targets[lm2c,:].T
-        ax.scatter(x, y, z+1e-3, color='red', marker='o')
-
-    ax = fig.add_subplot(2, 2, 2, projection='3d')
-    ax.set_title("Closest", color='w')
-    facemesh_plot((facefit.vertices, facefit.triangles_only), ax,
-                  rotation=rotate, light_alt=light)
-    if show_lm:
-        x, y, z = facefit.vertices[lm2,:].T
-        ax.scatter(x, y, z+1e-3, color='red', marker='x')
+    for idx, title, verts, tris, lms in plotting:
+        ax = fig.add_subplot(2, 2, idx, projection="3d")
+        ax.set_title(title, color="w")
+        facemesh_plot((verts, tris), ax, rotation=rotate, light_alt=light)
+        if show_lm:
+            x, y, z = verts[lms,:].T
+            ax.scatter(x, y, z+1e-3, color="red", marker='x')
 
     plt.show()
 
@@ -314,7 +281,6 @@ if __name__ == "__main__":
     parser_f2f.add_argument("--wx", type=float, default=0.0, help="Width weight control.")
     parser_f2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
     parser_f2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Minimize error for accuracy, effort for smoothness.")
-    parser_f2f.add_argument("--unsafe", action="store_true", help="Unsafe landmark detection.")
     parser_f2f.add_argument("--force", action="store_true", help="Force geometry after registration.")
     parser_f2f.add_argument("--sym", action="store_true", help="Symmetryc only.")
     parser_f2f.add_argument("--show", action="store_true", help="Show target/replica faces.")

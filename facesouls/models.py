@@ -12,14 +12,20 @@ __all__ = [
 class FaceGenSSM:
     def __init__ (self, tri=None, egm=None, fg=None, *, endian=None):
         if tri is not None:
-            self.load_shape_model(tri, egm, endian=endian)
+            tri, egm = self.load_shape_model(tri, egm, endian=endian)
+        else:
+            egm = None
 
         fg = self.load_shape_data(fg, endian=endian)
 
-        if not hasattr(self, "GS"): self.GS = np.uint32(fg.GS)
-        if not hasattr(self, "GA"): self.GA = np.uint32(fg.GA)
-        if not hasattr(self, "geo_basis_version"):
+        if egm is None:
+            self.GS = np.uint32(fg.GS)
+            self.GA = np.uint32(fg.GA)
             self.geo_basis_version = fg.geo_basis_version
+            if tri is not None:
+                nv, nd = self.vertices0.shape
+                self.gs_deltas = np.zeros((nv,nd,self.GS), dtype=np.float32)
+                self.ga_deltas = np.zeros((nv,nd,self.GA), dtype=np.float32)
 
     @property
     def vertices (self):
@@ -104,14 +110,19 @@ class FaceGenSSM:
 class FaceGenSTM:
     def __init__ (self, bmp=None, egt=None, fg=None, *, endian=None):
         if bmp is not None:
-            self.load_texture_model(bmp, egt, endian=endian)
+            bmp, egt = self.load_texture_model(bmp, egt, endian=endian)
+        else:
+            egt = None
 
         fg = self.load_texture_data(fg, endian=endian)
 
-        if not hasattr(self, "TS"): self.TS = np.uint32(fg.TS)
-        if not hasattr(self, "TA"): self.TA = np.uint32(fg.TA)
-        if not hasattr(self, "tex_basis_version"):
+        if egt is None:
+            self.TS = np.uint32(fg.TS)
+            self.TA = np.uint32(fg.TA)
             self.tex_basis_version = fg.tex_basis_version
+            if bmp is not None:
+                self.ts_deltas = np.zeros((nv,nd,self.TS), dtype=np.float32)
+                self.ta_deltas = np.zeros((nv,nd,self.TA), dtype=np.float32)
 
     @property
     def pixels (self):
@@ -292,6 +303,14 @@ class FaceGenerator:
 
     def set_texture_zero (self, stm):
         stm.ts_data.fill(0.0)
+        stm.ta_data.fill(0.0)
+
+    def set_sym_zero (self, sam):
+        ssm.gs_data.fill(0.0)
+        ssm.ts_data.fill(0.0)
+
+    def set_asym_zero (self, sam):
+        stm.ga_data.fill(0.0)
         stm.ta_data.fill(0.0)
 
     def get_shape_sym_control (self, idx, ssm):
