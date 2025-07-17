@@ -55,7 +55,7 @@ def fg2cc (cc, src, dst=None, *, preset=None,
 
     if how:
         lj = len(max(cc.labels.values(), key=len))
-        def howtoset (value, vmin, vmax, *, step=1):
+        def _howtoset (value, vmin, vmax, *, step=1):
             miss1 = (value-vmin) % step
             miss1 = min(miss1, step-miss1)
             miss2 = (vmax-value) % step
@@ -80,7 +80,7 @@ def fg2cc (cc, src, dst=None, *, preset=None,
         if not how:
             out += f"\n{key:03d}, {tab}, {lab}, {val};"
         else:
-            tck = howtoset(val, *slider.int_range, step=step)
+            tck = _howtoset(val, *slider.int_range, step=step)
             out += f"\n{tck:<4} {lab.ljust(lj)} {tab}"
 
     if dst is None:
@@ -104,10 +104,18 @@ def fg2cc (cc, src, dst=None, *, preset=None,
     plt.show()
 
 
+def _register_steps (ws=0.01, wl=10, wn=0.5, max_iter=10, n=4):
+    steps = [None]*n
+    for i in range(n-1):
+        steps[i] = (ws*(i+1), wl/2**i, wn, max_iter)
+    steps[-1] = (ws, 0.0, 0.0, max_iter)
+    return steps
+
 def fg2fg (cc1, cc2, src, dst=None, *,
            light=25, depth=0.0,
-           height=0.2, dist=1.0,
-           wl=2.0, wz=0.2, wx=0.0,
+           height=0.1, dist=1.0,
+           ws=0.01, wn=0.5,
+           wl=1.0, wz=0.0,
            nit=2, minimize="error",
            force=False, sym=False,
            show=False, show_lm=False, rotate=0):
@@ -136,9 +144,12 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     cropped2 = facemesh_crop(mesh2, lm2, y_tol=height)
     lm1c = facemesh_nearest_vertex(cropped1, mesh1.vertices[lm1])
     lm2c = facemesh_nearest_vertex(cropped2, mesh2.vertices[lm2])
-    cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
 
-    targets = facemesh_register(cropped2, cropped1, lm2c, lm1c, k=dist)
+    cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
+    targets = facemesh_register(cropped2, cropped1, lm2c, lm1c,
+                                k=dist,
+                                steps=_register_steps(ws=ws, wn=wn)
+                                )
     indices = facemesh_nearest_vertex(mesh2, cropped2.vertices)
     if force:
         targets = facemesh_nearest_point(cropped1, targets)
@@ -146,7 +157,7 @@ def fg2fg (cc1, cc2, src, dst=None, *,
     face3, _, err = fit_mesh(face2, targets,
                             indices=indices,
                             landmarks=lm2,
-                            wl=wl, wz=wz, wx=wx,
+                            wl=wl, wz=wz,
                             iterations=nit,
                             minimize=minimize,
                             asymmetry=not sym)
@@ -182,8 +193,10 @@ def fg2fg (cc1, cc2, src, dst=None, *,
 
 def obj2fg (cc, src, dst=None,
             light=25, depth=0.0,
-            height=0.2, dist=1.0,
-            wl=2.0, wz=0.2, wx=0.0, nit=2, minimize="error",
+            height=0.1, dist=1.0,
+            ws=0.01, wn=0.5,
+            wl=1.0, wz=0.0,
+            nit=1, minimize="error",
             force=False, sym=False,
             show=False, show_lm=False, rotate=0):
     cc = CharacterCreator(cc)
@@ -197,12 +210,17 @@ def obj2fg (cc, src, dst=None,
     lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
     lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
     lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
+
     cropped1 = facemesh_crop(mesh1, lm1, y_tol=height)
     cropped2 = facemesh_crop(mesh2, lm2, y_tol=height)
     lm1c = facemesh_nearest_vertex(cropped1, mesh1.vertices[lm1])
     lm2c = facemesh_nearest_vertex(cropped2, mesh2.vertices[lm2])
+
     cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
-    targets = facemesh_register(cropped2, cropped1, lm2c, lm1c, k=dist)
+    targets = facemesh_register(cropped2, cropped1, lm2c, lm1c,
+                                k=dist,
+                                steps=_register_steps(ws=ws, wn=wn)
+                                )
     indices = facemesh_nearest_vertex(mesh2, cropped2.vertices)
     if force:
         targets = facemesh_nearest_point(cropped1, targets)
@@ -210,7 +228,7 @@ def obj2fg (cc, src, dst=None,
     facefit, _, err = fit_mesh(cc.face, targets,
                                indices=indices,
                                landmarks=lm2,
-                               wl=wl, wz=wz, wx=wx,
+                               wl=wl, wz=wz,
                                iterations=nit,
                                minimize=minimize,
                                asymmetry=not sym)
@@ -260,7 +278,7 @@ if __name__ == "__main__":
     parser_f2c.add_argument("cc", help="Character creator set (.zip).")
     parser_f2c.add_argument("src", help="Input, target face (.fg).")
     parser_f2c.add_argument("dst", nargs='?', default=None, help="Output, optimal sliders (.csv).")
-    parser_f2c.add_argument("--preset", default=None, help="Preset face (.fg/.csv), only for DeS/DS1.")
+    parser_f2c.add_argument("--preset", default=None, help="Preset face (.fg/.csv), required for DeS/DS1.")
     parser_f2c.add_argument("--mode", default=2, type=int, help="Fit mode (0 = data, 1 = features, 2 = geometry).")
     parser_f2c.add_argument("--maxit", default=100, type=int, help="Max. number of iterations.")
     parser_f2c.add_argument("--how", action="store_true", help="Output slider as ticks from sides.")
@@ -274,12 +292,13 @@ if __name__ == "__main__":
     parser_f2f.add_argument("dst", nargs='?', default=None, help="Output, optimal face (.fg).")
     parser_f2f.add_argument("--light", type=float, default=25.0, help="Light source elevation.")
     parser_f2f.add_argument("--depth", type=float, default=0.0, help="Face outline, further ahead (+) or further back (-).")
-    parser_f2f.add_argument("--height", type=float, default=0.2, help="Vertical cropping tolerance.")
-    parser_f2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent for mesh registration.")
-    parser_f2f.add_argument("--wl", type=float, default=2.0, help="Landmarks relative weight.")
-    parser_f2f.add_argument("--wz", type=float, default=0.2, help="Z-weight control.")
-    parser_f2f.add_argument("--wx", type=float, default=0.0, help="Width weight control.")
-    parser_f2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
+    parser_f2f.add_argument("--height", type=float, default=0.2, help="Vertical cropping tolerance, for mesh registration.")
+    parser_f2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent, for mesh registration.")
+    parser_f2f.add_argument("--ws", type=float, default=0.01, help="Smoothness weight, for mesh registration.")
+    parser_f2f.add_argument("--wn", type=float, default=0.1, help="Normals weight control, for mesh registration.")
+    parser_f2f.add_argument("--wl", type=float, default=10.0, help="Landmarks relative weight, for mesh conversion.")
+    parser_f2f.add_argument("--wz", type=float, default=0.2, help="Depth weight control, for mesh conversion.")
+    parser_f2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations, for mesh converson.")
     parser_f2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Minimize error for accuracy, effort for smoothness.")
     parser_f2f.add_argument("--force", action="store_true", help="Force geometry after registration.")
     parser_f2f.add_argument("--sym", action="store_true", help="Symmetryc only.")
@@ -295,9 +314,10 @@ if __name__ == "__main__":
     parser_o2f.add_argument("--depth", type=float, default=0.0, help="Face outline, further ahead (+) or further back (-).")
     parser_o2f.add_argument("--height", type=float, default=0.2, help="Vertical cropping tolerance.")
     parser_o2f.add_argument("--dist", type=float, default=1.0, help="Distance threshold exponent for mesh registration.")
-    parser_o2f.add_argument("--wl", type=float, default=2.0, help="Landmarks relative weight.")
-    parser_o2f.add_argument("--wz", type=float, default=0.2, help="Depth weight control.")
-    parser_o2f.add_argument("--wx", type=float, default=0.0, help="Width weight control.")
+    parser_o2f.add_argument("--ws", type=float, default=0.01, help="Smoothness weight, for mesh registration.")
+    parser_o2f.add_argument("--wn", type=float, default=0.1, help="Normals weight control, for mesh registration.")
+    parser_o2f.add_argument("--wl", type=float, default=10.0, help="Landmarks relative weight, for mesh conversion.")
+    parser_o2f.add_argument("--wz", type=float, default=0.2, help="Depth weight control, for mesh conversion.")
     parser_o2f.add_argument("--nit", type=int, default=2, help="Number of fit iterations.")
     parser_o2f.add_argument("--minimize", choices=["error", "effort"], default="error", help="Minimize error for accuracy, effort for smoothness.")
     parser_o2f.add_argument("--force", action="store_true", help="Force geometry after registration.")

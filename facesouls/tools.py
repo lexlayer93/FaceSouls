@@ -132,7 +132,7 @@ def facemesh_align (source_mesh, target_mesh, source_landmarks, target_landmarks
 
 def facemesh_register (source_mesh, target_mesh,
                        source_landmarks, target_landmarks,
-                       k=1.0,
+                       *, k=1.0,
                        **kwargs):
     _, dist, _ = closest_point(target_mesh, source_mesh.vertices)
     dt = np.median(dist) * (2**k)
@@ -196,7 +196,7 @@ def facemesh_from_model (ssm):
 def fit_mesh (ssm, targets, *,
               indices=None, landmarks=None,
               minimize="error", asymmetry=True, iterations=1,
-              wz=0.0, wx=0.0, wl=1.0):
+              wz=0.0, wl=1.0):
     if asymmetry:
         deltas = np.concatenate([ssm.gs_deltas, ssm.ga_deltas], axis=2)
     else:
@@ -216,12 +216,10 @@ def fit_mesh (ssm, targets, *,
     targets_z = targets[:,2] - verts[:,2].min()
     targets_z = np.clip(targets_z, 0.0, None)
     targets_z /= targets_z.max()
-    weights[indices,2] *= np.power(targets_z, wz) if wz >= 0 else np.power(1-targets_z,-wz)
-
-    targets_x = targets[:,0] - np.mean(verts0[:,0])
-    targets_x = np.abs(targets_x)
-    targets_x /= targets_x.max()
-    weights[indices,0] *= np.power(targets_x, wx) if wx >= 0 else np.power(1-targets_x,-wx)
+    if wz < 0:
+        targets_z = 1 - targets_z
+        wz = -wz
+    weights[indices,:] *= np.power(targets_z[:,None], wz)
 
     if landmarks is not None:
         weights[landmarks,:2] *= wl
