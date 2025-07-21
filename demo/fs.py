@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 
 def view (cc, face):
-    cc = CharacterCreator(cc)
+    cc = CharacterCreator.fromzip(cc)
     if isinstance(face, str):
         if face.endswith(".fg"):
             cc.load_data(face)
@@ -20,7 +20,7 @@ def view (cc, face):
 
 
 def diff (cc, key, length=1.0):
-    cc = CharacterCreator(cc)
+    cc = CharacterCreator.fromzip(cc)
     face = cc.models[0]
     cc.set_zero(face)
     tails = face.vertices.T
@@ -45,7 +45,7 @@ def fg2cc (
     how=False, step=5,
     show=False
     ):
-    cc = CharacterCreator(cc)
+    cc = CharacterCreator.fromzip(cc)
     target = cc.face.copy()
     target.load_data(src)
     if isinstance(preset, str):
@@ -162,7 +162,7 @@ def fg2fg (
     force=False, sym=False,
     show=False, show_lm=False, rotate=0
     ):
-    cc1 = CharacterCreator(cc1)
+    cc1 = CharacterCreator.fromzip(cc1)
     face1 = cc1.models[0].copy()
     cc1.set_zero(face1)
     mesh1 = Facemesh.fromfg(face1)
@@ -170,7 +170,7 @@ def fg2fg (
     face1.load_data(src)
     mesh1.vertices = face1.vertices
 
-    cc2 = CharacterCreator(cc2)
+    cc2 = CharacterCreator.fromzip(cc2)
     face2 = cc2.models[0].copy()
     cc2.set_zero(face2)
     mesh2 = Facemesh.fromfg(face2)
@@ -222,7 +222,7 @@ def obj2fg (
     force=False, sym=False,
     show=False, show_lm=False, rotate=0
     ):
-    cc = CharacterCreator(cc)
+    cc = CharacterCreator.fromzip(cc)
     cc.set_zero(cc.face)
     mesh1 = Facemesh.fromfile(src)
     mesh2 = Facemesh.fromfg(cc.face)

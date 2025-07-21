@@ -1,18 +1,12 @@
 from .models import FaceGenerator, FaceGenSAM
-from zipfile import is_zipfile, ZipFile
+from zipfile import ZipFile
 
 __all__ = [
     "CharacterCreator"
     ]
 
 class CharacterCreator (FaceGenerator):
-    def __init__ (self, *files, preset=None, endian=None):
-        if len(files) == 1 and is_zipfile(files[0]):
-            endian, ctl, menu, models = zip_load(files[0])
-        else:
-            ctl = files[0]
-            menu = files[1] if len(files) > 1 else None
-            models = files[2:] if len(files) > 2 else None
+    def __init__ (self, ctl, menu=None, models=None, *, preset=None, endian=None):
         super().__init__(ctl, endian=endian)
         self.all_at_once = False
         self.sliders = dict()
@@ -34,6 +28,35 @@ class CharacterCreator (FaceGenerator):
             self.load_data(preset, endian=endian)
 
         self.load_menu(menu) # sets all_at_once, updates models...
+
+    @classmethod
+    def fromzip (cls, src):
+        with ZipFile(src, 'r') as zf:
+            lof = sorted(zf.namelist())
+            lof = [tuple(f.rsplit('.',1)) for f in lof]
+            csv_list = ['.'.join(f) for f in lof if f[-1].startswith("csv")]
+            ctl_list = ['.'.join(f) for f in lof if f[-1].startswith("ctl")]
+            tri_list = ['.'.join(f) for f in lof if f[-1].startswith("tri")]
+            egm_list = ['.'.join(f) for f in lof if f[-1].startswith("egm")]
+            ctl = zf.open(ctl_list[0]).read()
+            menu = zf.open(csv_list[0]).read()
+
+            # tri, egm pairs should have the same name
+            models = list()
+            for tri,egm in zip(tri_list, egm_list):
+                tri = zf.open(tri).read()
+                egm = zf.open(egm).read()
+                models.append((tri,egm))
+
+            # catch endianness from facegen files extensions
+            fg_ext = [f[-1] for f in lof if f[-1].startswith(("ctl","tri","egm"))]
+            if all(ext.endswith("be") for ext in fg_ext):
+                endian = "big"
+            elif all(ext.endswith("le") for ext in fg_ext):
+                endian = "little"
+            else:
+                endian = None
+        return cls(ctl, menu, models, endian=endian)
 
     @property
     def values (self):
@@ -307,36 +330,6 @@ def csv_load (src):
             out[key] = cells[1:]
 
     return out
-
-
-def zip_load (src):
-    with ZipFile(src, 'r') as zf:
-        lof = sorted(zf.namelist())
-        lof = [tuple(f.rsplit('.',1)) for f in lof]
-        csv_list = ['.'.join(f) for f in lof if f[-1].startswith("csv")]
-        ctl_list = ['.'.join(f) for f in lof if f[-1].startswith("ctl")]
-        tri_list = ['.'.join(f) for f in lof if f[-1].startswith("tri")]
-        egm_list = ['.'.join(f) for f in lof if f[-1].startswith("egm")]
-        ctl = zf.open(ctl_list[0]).read()
-        menu = zf.open(csv_list[0]).read()
-
-        # tri, egm pairs should have the same name
-        models = list()
-        for tri,egm in zip(tri_list, egm_list):
-            tri = zf.open(tri).read()
-            egm = zf.open(egm).read()
-            models.append((tri,egm))
-
-        # catch endianness from facegen files extensions
-        fg_ext = [f[-1] for f in lof if f[-1].startswith(("ctl","tri","egm"))]
-        if all(ext.endswith("be") for ext in fg_ext):
-            endian = "big"
-        elif all(ext.endswith("le") for ext in fg_ext):
-            endian = "little"
-        else:
-            endian = None
-
-    return endian, ctl, menu, models
 
 
 DFTABS = {

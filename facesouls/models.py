@@ -32,7 +32,7 @@ class FaceGenSSM:
         return self.vertices0 + self.gs_deltas.dot(self.gs_data) + self.ga_deltas.dot(self.ga_data)
 
     def copy (self, *, to=None):
-        if to is None: to = FaceGenSSM.__new__(FaceGenSSM)
+        if to is None: to = object.__new__(FaceGenSSM)
         try:
             to.vertices0 = self.vertices0
             to.triangles = self.triangles
@@ -125,7 +125,7 @@ class FaceGenSTM:
         return self.pixels0 + self.ts_deltas.dot(self.ts_data) + self.ta_deltas.dot(self.ta_data)
 
     def copy (self, *, to=None):
-        if to is None: to = FaceGenSTM.__new__(FaceGenSTM)
+        if to is None: to = object.__new__(FaceGenSTM)
         try:
             to.pixels0 = self.pixels0
         except AttributeError:
@@ -182,7 +182,7 @@ class FaceGenSAM (FaceGenSSM, FaceGenSTM):
         FaceGenSTM.__init__(self, bmp, egt, fg, endian=endian)
 
     def copy (self, *, to=None):
-        if to is None: to = FaceGenSAM.__new__(FaceGenSAM)
+        if to is None: to = object.__new__(FaceGenSAM)
         FaceGenSSM.copy(self, to=to)
         FaceGenSTM.copy(self, to=to)
         return to
@@ -548,7 +548,7 @@ class FaceGenerator:
         sam.ts_data += k * control.ts_coeff
 
     def test_model (self):
-        sam = FaceGenSAM.__new__(FaceGenSAM)
+        sam = object.__new__(FaceGenSAM)
         self.fix_model(sam)
         return sam
 

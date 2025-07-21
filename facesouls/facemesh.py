@@ -63,10 +63,12 @@ class Facemesh:
         imin, imax = x.argmin(), x.argmax()
         z0 = (z[imin] + z[imax])/2.0
         depth = self.bounds[1,2] - z0
+        zs = z0 + k*depth
 
-        sliced = self.__trimesh.slice_plane((0,0,z0 + k*depth), (0,0,1))
+        sliced = self.__trimesh.slice_plane((0,0,zs), (0,0,1))
         if self.landmarks.size > 0:
-            _, newlm = sliced.nearest.vertex(points=self.keypoints)
+            mask = self.keypoints[:,2] >= zs
+            _, newlm = sliced.nearest.vertex(points=self.keypoints[mask])
             return Facemesh(sliced.vertices, sliced.faces, landmarks=newlm)
         else:
             return Facemesh(sliced.vertices, sliced.faces)
