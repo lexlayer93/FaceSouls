@@ -4,45 +4,23 @@ from scipy import optimize
 import matplotlib.pyplot as plt
 from matplotlib.colors import LightSource
 import dlib
-from trimesh import load as facemesh_load
-from trimesh.base import Trimesh, Scene
-from trimesh.proximity import closest_point
-from trimesh.registration import procrustes, icp, nricp_amberg, nricp_sumner
-from trimesh.triangles import points_to_barycentric, barycentric_to_points
-from trimesh.transformations import compose_matrix, decompose_matrix
-
 
 __all__ = [
-    "facemesh_plot",
-    "facemesh_landmarks",
-    "facemesh_align",
-    "facemesh_register",
-    "facemesh_slice_depth",
-    "facemesh_crop",
-    "facemesh_nearest_vertex",
-    "facemesh_nearest_point",
-    "facemesh_nearest_barycentric",
-    "facemesh_from_model",
-    "facemesh_load",
-    "fit_mesh",
-    "fit_model"
+    "faceplot",
+    "find_landmarks",
+    "facemesh_to_fg",
+    "facegen_to_cc"
     ]
 
-current_dir = os.path.dirname(__file__)
-DLIB_PREDICTOR_PATH = os.path.join(current_dir, "shape_predictor_68_face_landmarks.dat")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DLIB_PREDICTOR_PATH = os.path.join(BASE_DIR, "shape_predictor_68_face_landmarks.dat")
 DLIB_DETECTOR = None
 DLIB_PREDICTOR = None
 
 
-def facemesh_plot (mesh, ax,
-                   *, persp="persp", rotation=0, light_alt=25,
-                   **kwargs):
-    if isinstance(mesh, Trimesh):
-        vertices = mesh.vertices
-        triangles = mesh.faces
-    else:
-        vertices, triangles = mesh
-
+def faceplot (ax, vertices, triangles, *,
+              persp="persp", rotation=0, light_alt=25,
+              **kwargs):
     kwargs.setdefault("color", "peachpuff")
     kwargs.setdefault("edgecolor", "none")
     kwargs.setdefault("linewidth", 0)
@@ -64,22 +42,19 @@ def facemesh_plot (mesh, ax,
     return polyc
 
 
-def facemesh_landmarks (mesh, **kwargs):
+def find_landmarks (mesh, **kwargs):
     global DLIB_DETECTOR, DLIB_PREDICTOR
     if DLIB_DETECTOR is None:
         DLIB_DETECTOR = dlib.get_frontal_face_detector()
     if DLIB_PREDICTOR is None:
         DLIB_PREDICTOR = dlib.shape_predictor(DLIB_PREDICTOR_PATH)
 
-    if isinstance(mesh, Trimesh):
-        vertices = mesh.vertices
-        triangles = mesh.faces
-    else:
-        vertices, triangles = mesh
+    vertices = mesh.vertices
+    triangles = mesh.triangles
 
     fig = plt.figure(facecolor='k', dpi=300)
     ax = fig.add_axes([0, 0, 1, 1], projection='3d')
-    facemesh_plot(mesh, ax, persp="ortho", **kwargs)
+    faceplot(ax, vertices, triangles, persp="ortho", **kwargs)
     fig.canvas.draw()
     buf, (width, height) = fig.canvas.print_to_buffer()
     plt.close(fig)
@@ -118,85 +93,14 @@ def facemesh_landmarks (mesh, **kwargs):
     return landmarks
 
 
-def facemesh_align (source_mesh, target_mesh, source_landmarks, target_landmarks):
-    matrix0, _, _ = procrustes(source_mesh.vertices[source_landmarks],
-                               target_mesh.vertices[target_landmarks],
-                               reflection=False)
-    matrix, transformed, _ = icp(source_mesh.vertices,
-                                target_mesh.vertices,
-                                initial = matrix0,
-                                reflection=False)
-    aligned = Trimesh(vertices=transformed, faces=source_mesh.faces, process=False)
-    return aligned, matrix
+def facemesh_to_fg (
+    mesh, ssm, *,
+    indices=None, landmarks=None,
+    minimize="error", asymmetry=True, iterations=1,
+    wz=0.0, wl=1.0
+    ):
+    targets = mesh.vertices
 
-
-def facemesh_register (source_mesh, target_mesh,
-                       source_landmarks, target_landmarks,
-                       *, k=1.0,
-                       **kwargs):
-    _, dist, _ = closest_point(target_mesh, source_mesh.vertices)
-    dt = np.median(dist) * (2**k)
-    nrr_points = nricp_amberg(source_mesh, target_mesh,
-                            source_landmarks = np.asarray(source_landmarks, dtype=int),
-                            target_positions = target_mesh.vertices[target_landmarks],
-                            distance_threshold = max(dt,1e-6),
-                            **kwargs)
-    return nrr_points
-
-
-def facemesh_slice_depth (mesh, k=0.0):
-    x_verts = mesh.vertices[:,0]
-    imin, imax = x_verts.argmin(), x_verts.argmax()
-    z_sli = (mesh.vertices[imin,2] + mesh.vertices[imax,2])/2.0
-    depth = mesh.bounds[1,2] - z_sli
-
-    return mesh.slice_plane([0,0,z_sli + k*depth], [0,0,1])
-
-
-def facemesh_crop (mesh, landmarks, *, x_tol=0.05, y_tol=0.1, z_tol=0.05):
-    lm_verts = mesh.vertices[landmarks]
-    x_min, y_min, z_min = lm_verts.min(axis=0)
-    x_max, y_max, z_max = lm_verts.max(axis=0)
-    width = x_max - x_min
-    height = y_max - y_min
-    depth = z_max - z_min
-
-    cropped = (mesh
-              .slice_plane([0,y_min - y_tol*height,0], [0,1,0])
-              .slice_plane([0,y_max + y_tol*height,0], [0,-1,0])
-              .slice_plane([0,0,z_min - z_tol*depth], [0,0,1])
-              .slice_plane([0,0,z_max + z_tol*depth], [0,0,-1])
-              .slice_plane([x_min - x_tol*width,0,0], [1,0,0])
-              .slice_plane([x_max + x_tol*width,0,0], [-1,0,0])
-              )
-
-    return cropped
-
-
-def facemesh_nearest_vertex (mesh, points):
-    _, indices = mesh.nearest.vertex(points)
-    return indices
-
-
-def facemesh_nearest_point (mesh, points):
-    closest, _, _ = closest_point(mesh, points)
-    return closest
-
-
-def facemesh_nearest_barycentric (mesh, points):
-    closest, _, tridx = closest_point(mesh, points)
-    barycentric = points_to_barycentric(mesh.triangles[tridx], closest)
-    return (tridx, barycentric)
-
-
-def facemesh_from_model (ssm):
-    return Trimesh(ssm.vertices, ssm.triangles_only, process = False)
-
-
-def fit_mesh (ssm, targets, *,
-              indices=None, landmarks=None,
-              minimize="error", asymmetry=True, iterations=1,
-              wz=0.0, wl=1.0):
     if asymmetry:
         deltas = np.concatenate([ssm.gs_deltas, ssm.ga_deltas], axis=2)
     else:
@@ -262,13 +166,10 @@ def fit_mesh (ssm, targets, *,
         R = Rz @ Ry @ Rx
 
         verts = (1+k)*verts.dot(R.T) + np.multiply(weights,[x,y,z])
-        xt, yt, zt, at, bt, ct, kt = xt+x, yt+y, zt+z, at+a, bt+b, ct+c, kt+k
 
     fit = Dinv.dot((verts - verts0).flatten())
 
     weighted_error = np.sum((verts0 + np.dot(deltas,fit) - verts)**2)/np.sum(weights**2)
-
-    transformation = compose_matrix(scale=(kt,kt,kt), angles=(at,bt,ct), translate=(xt,yt,zt))
 
     best = ssm.copy()
     best.gs_data += fit[:ssm.GS]
@@ -278,12 +179,13 @@ def fit_mesh (ssm, targets, *,
         best.ga_data.fill(0.0)
 
     return (best,
-            transformation,
             weighted_error)
 
 
-def fit_model (character_creator, target_model,
-               *, mode=0, maxiter=100, **kwargs):
+def facegen_to_cc (
+    target, character_creator, *,
+    mode=0, maxiter=100, **kwargs
+    ):
     cc = character_creator
     sequence = cc.sequence
     available = [key for tab in cc.menu.values() for key in tab]
@@ -320,7 +222,7 @@ def fit_model (character_creator, target_model,
         preseq = dict()
 
     s0 = Nt.dot(replica.gs_data)
-    st = target_model.gs_data
+    st = target.gs_data
     smin, smax = cc.shape_sym_range
 
 

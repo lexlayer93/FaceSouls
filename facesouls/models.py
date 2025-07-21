@@ -36,12 +36,8 @@ class FaceGenSSM:
         try:
             to.vertices0 = self.vertices0
             to.triangles = self.triangles
-            to.quads = self.quads
-            to.triangles_only = self.triangles_only
             to.uv_vertices = self.uv_vertices
             to.uv_triangles = self.uv_triangles
-            to.uv_quads = self.uv_quads
-            to.uv_triangles_only = self.uv_triangles_only
         except AttributeError:
             pass
         try:
@@ -63,23 +59,23 @@ class FaceGenSSM:
         if not isinstance(tri, FaceGenTRI):
             tri = FaceGenTRI(tri, endian=endian)
         self.vertices0 = np.array(tri.vertices, dtype=np.float32)
-        self.triangles = np.array(tri.triangles, dtype=np.uint32)
-        self.quads = np.array(tri.quads, dtype=np.uint32)
         self.uv_vertices = np.array(tri.uv_vertices, dtype=np.float32)
-        self.uv_triangles = np.array(tri.uv_triangles, dtype=np.uint32)
-        self.uv_quads = np.array(tri.uv_quads, dtype=np.uint32)
+        triangles = np.array(tri.triangles, dtype=np.uint32)
+        quads = np.array(tri.quads, dtype=np.uint32)
+        uv_triangles = np.array(tri.uv_triangles, dtype=np.uint32)
+        uv_quads = np.array(tri.uv_quads, dtype=np.uint32)
         if tri.num_quads > 0:
-            triangles1 = self.triangles
-            triangles2 = np.delete(self.quads, 1, axis=1)
-            triangles3 = np.delete(self.quads, 3, axis=1)
-            self.triangles_only = np.concatenate((triangles1, triangles2, triangles3), axis=0)
-            triangles1 = self.uv_triangles
-            triangles2 = np.delete(self.uv_quads, 1, axis=1)
-            triangles3 = np.delete(self.uv_quads, 3, axis=1)
-            self.uv_triangles_only = np.concatenate((triangles1, triangles2, triangles3), axis=0)
+            triangles1 = triangles
+            triangles2 = np.delete(quads, 1, axis=1)
+            triangles3 = np.delete(quads, 3, axis=1)
+            self.triangles = np.concatenate((triangles1, triangles2, triangles3), axis=0)
+            triangles1 = uv_triangles
+            triangles2 = np.delete(uv_quads, 1, axis=1)
+            triangles3 = np.delete(uv_quads, 3, axis=1)
+            self.uv_triangles = np.concatenate((triangles1, triangles2, triangles3), axis=0)
         else:
-            self.triangles_only = self.triangles
-            self.uv_triangles_only = self.uv_triangles
+            self.triangles = triangles
+            self.uv_triangles = uv_triangles
 
         if egm is None:
             return tri, egm

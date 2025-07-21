@@ -1,5 +1,6 @@
 import argparse
 from facesouls.character import CharacterCreator
+from facesouls.facemesh import Facemesh
 from facesouls.tools import *
 import matplotlib.pyplot as plt
 
@@ -14,7 +15,7 @@ def view (cc, face):
     face = cc.models[0]
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
     ax = fig.add_axes([0, 0, 1, 1], projection="3d")
-    facemesh_plot((face.vertices, face.triangles_only), ax)
+    faceplot(ax, face.vertices, face.triangles)
     plt.show()
 
 
@@ -31,18 +32,21 @@ def diff (cc, key, length=1.0):
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
     ax = fig.add_subplot(projection="3d")
     ax.set_title(cc.sliders[key].debug_label, color='w')
-    facemesh_plot((face.vertices0, face.triangles_only), ax)
+
+    faceplot(ax, face.vertices0, face.triangles_only)
     ax.quiver(*tails, *arrows, length=length)
 
     plt.show()
 
 
-def fg2cc (cc, src, dst=None, *, preset=None,
-           mode=2, maxit=100,
-           how=False, step=5,
-           show=False):
+def fg2cc (
+    cc, src, dst=None, *, preset=None,
+    mode=2, maxit=100,
+    how=False, step=5,
+    show=False
+    ):
     cc = CharacterCreator(cc)
-    target = cc.models[0].copy()
+    target = cc.face.copy()
     target.load_data(src)
     if isinstance(preset, str):
         if preset.endswith(".fg"):
@@ -50,8 +54,9 @@ def fg2cc (cc, src, dst=None, *, preset=None,
         else:
             cc.load_values(preset)
 
-    solution, replica, info = fit_model(cc, target, mode=mode, maxiter=maxit)
-    replica.ga_data.fill(0.0)
+    solution, replica, info = facegen_to_cc(
+        target, cc,
+        mode=mode, maxiter=maxit)
 
     if how:
         lj = len(max(cc.labels.values(), key=len))
@@ -95,170 +100,168 @@ def fg2cc (cc, src, dst=None, *, preset=None,
 
     ax = fig.add_subplot(1, 2, 1, projection='3d')
     ax.set_title("Target", color='w')
-    facemesh_plot((target.vertices, target.triangles_only), ax)
+    faceplot(ax, target.vertices, target.triangles)
 
     ax = fig.add_subplot(1, 2, 2, projection='3d')
     ax.set_title("Replica", color='w')
-    facemesh_plot((replica.vertices, replica.triangles_only), ax)
+    faceplot(ax, replica.vertices, replica.triangles)
 
     plt.show()
 
 
-def _register_steps (ws=0.01, wl=10, wn=0.5, max_iter=10, n=4):
-    steps = [None]*n
-    for i in range(n-1):
-        steps[i] = (ws*(i+1), wl/2**i, wn, max_iter)
-    steps[-1] = (ws, 0.0, 0.0, max_iter)
-    return steps
+def _set_landmarks (mesh, *, depth, light):
+    sliced = mesh.sliced(depth)
+    sliced.landmarks = find_landmarks(sliced, light_alt=light)[:60]
+    mesh.landmarks = mesh.nearest_vertex(sliced.keypoints)
 
-def fg2fg (cc1, cc2, src, dst=None, *,
-           light=25, depth=0.0,
-           height=0.1, dist=1.0,
-           ws=0.01, wn=0.5,
-           wl=1.0, wz=0.0,
-           nit=2, minimize="error",
-           force=False, sym=False,
-           show=False, show_lm=False, rotate=0):
-    cc1 = CharacterCreator(cc1)
-    cc2 = CharacterCreator(cc2)
-    face1 = cc1.models[0].copy()
-    face2 = cc2.models[0].copy()
-    cc1.set_zero(face1)
-    cc2.set_zero(face2)
+def _register (
+    source, target, *,
+    height, dist, ws, wn, force):
+    def _steps (ws=0.01, wl=10, wn=0.5, max_iter=10, n=4):
+        steps = [None]*n
+        for i in range(n-1):
+            steps[i] = (ws*(i+1), wl/2**i, wn, max_iter)
+        steps[n-1] = (ws, 0.0, 0.0, max_iter)
+        return steps
 
-    mesh1 = facemesh_from_model(face1)
-    mesh2 = facemesh_from_model(face2)
-    sliced1 = facemesh_slice_depth(mesh1, k=depth)
-    sliced2 = facemesh_slice_depth(mesh2, k=depth)
-    lm1 = facemesh_landmarks(sliced1, light_alt=light)[:60]
-    lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
-    lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
-    lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
+    cropped_src = source.cropped(ytol=height)
+    cropped_tgt = target.cropped(ytol=height)
 
-    face1.load_data(src)
-    face2.load_data(src)
-    mesh1.vertices = face1.vertices
-    mesh2.vertices = face2.vertices
+    aligned_tgt = cropped_tgt.aligned(cropped_src)
 
-    cropped1 = facemesh_crop(mesh1, lm1, y_tol=height)
-    cropped2 = facemesh_crop(mesh2, lm2, y_tol=height)
-    lm1c = facemesh_nearest_vertex(cropped1, mesh1.vertices[lm1])
-    lm2c = facemesh_nearest_vertex(cropped2, mesh2.vertices[lm2])
+    dt = cropped_src.distance(aligned_tgt)*(2**dist)
+    fitted = cropped_src.fitted(
+        aligned_tgt,
+        distance_threshold=dt,
+        steps=_steps(ws=ws, wn=wn),
+        force=force)
+    indices = source.nearest_vertex(cropped_src.vertices)
 
-    cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
-    targets = facemesh_register(cropped2, cropped1, lm2c, lm1c,
-                                k=dist,
-                                steps=_register_steps(ws=ws, wn=wn)
-                                )
-    indices = facemesh_nearest_vertex(mesh2, cropped2.vertices)
-    if force:
-        targets = facemesh_nearest_point(cropped1, targets)
+    return fitted, indices
 
-    face3, _, err = fit_mesh(face2, targets,
-                            indices=indices,
-                            landmarks=lm2,
-                            wl=wl, wz=wz,
-                            iterations=nit,
-                            minimize=minimize,
-                            asymmetry=not sym)
-    face3.ga_data.fill(0.0)
 
-    print("# Error:", err)
-    print("# Solution:", face3.gs_data)
-
-    if dst is not None:
-        face3.save_data(dst)
-
-    if not show:
-        return
-
-    plotting = [
-        (1, "Target", cropped1.vertices, cropped1.faces, lm1c),
-        (2, "Closest", face3.vertices, face3.triangles_only, lm2),
-        (3, "Same data", cropped2.vertices, cropped2.faces, lm2c),
-        (4, "Deformation", targets, cropped2.faces, lm2c)
-        ]
-
+def _plot (data, nr, nc):
     fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
-    for idx, title, verts, tris, lms in plotting:
-        ax = fig.add_subplot(2, 2, idx, projection="3d")
+    for idx, title, verts, tris, lms, light_alt, rotation, show_lm in data:
+        ax = fig.add_subplot(nr, nc, idx, projection="3d")
         ax.set_title(title, color="w")
-        facemesh_plot((verts, tris), ax, rotation=rotate, light_alt=light)
+        faceplot(ax, verts, tris, rotation=rotation, light_alt=light_alt)
         if show_lm:
             x, y, z = verts[lms,:].T
             ax.scatter(x, y, z+1e-3, color="red", marker='x')
-
     plt.show()
 
 
-def obj2fg (cc, src, dst=None,
-            light=25, depth=0.0,
-            height=0.1, dist=1.0,
-            ws=0.01, wn=0.5,
-            wl=1.0, wz=0.0,
-            nit=1, minimize="error",
-            force=False, sym=False,
-            show=False, show_lm=False, rotate=0):
-    cc = CharacterCreator(cc)
-    cc.set_zero(cc.face)
-    mesh1 = facemesh_load(src, force="mesh")
-    mesh2 = facemesh_from_model(cc.face)
-    sliced1 = facemesh_slice_depth(mesh1, k=depth)
+def fg2fg (
+    cc1, cc2, src, dst=None, *,
+    light=25, depth=0.0,
+    height=0.1, dist=1.0,
+    ws=0.01, wn=0.5,
+    wl=1.0, wz=0.0,
+    nit=2, minimize="error",
+    force=False, sym=False,
+    show=False, show_lm=False, rotate=0
+    ):
+    cc1 = CharacterCreator(cc1)
+    face1 = cc1.models[0].copy()
+    cc1.set_zero(face1)
+    mesh1 = Facemesh.fromfg(face1)
+    _set_landmarks(mesh1, depth=depth, light=light)
+    face1.load_data(src)
+    mesh1.vertices = face1.vertices
 
-    sliced2 = facemesh_slice_depth(mesh2, k=depth)
-    lm1 = facemesh_landmarks(sliced1, light_alt=light)[:60]
-    lm2 = facemesh_landmarks(sliced2, light_alt=light)[:60]
-    lm1 = facemesh_nearest_vertex(mesh1, sliced1.vertices[lm1])
-    lm2 = facemesh_nearest_vertex(mesh2, sliced2.vertices[lm2])
+    cc2 = CharacterCreator(cc2)
+    face2 = cc2.models[0].copy()
+    cc2.set_zero(face2)
+    mesh2 = Facemesh.fromfg(face2)
+    _set_landmarks(mesh2, depth=depth, light=light)
+    face2.load_data(src)
+    mesh2.vertices = face2.vertices
 
-    cropped1 = facemesh_crop(mesh1, lm1, y_tol=height)
-    cropped2 = facemesh_crop(mesh2, lm2, y_tol=height)
-    lm1c = facemesh_nearest_vertex(cropped1, mesh1.vertices[lm1])
-    lm2c = facemesh_nearest_vertex(cropped2, mesh2.vertices[lm2])
+    fitted, indices = _register(
+        mesh2, mesh1,
+        height=height, dist=dist,
+        ws=ws, wn=wn,
+        force=force)
 
-    cropped1, _ = facemesh_align(cropped1, cropped2, lm1c, lm2c)
-    targets = facemesh_register(cropped2, cropped1, lm2c, lm1c,
-                                k=dist,
-                                steps=_register_steps(ws=ws, wn=wn)
-                                )
-    indices = facemesh_nearest_vertex(mesh2, cropped2.vertices)
-    if force:
-        targets = facemesh_nearest_point(cropped1, targets)
-
-    facefit, _, err = fit_mesh(cc.face, targets,
-                               indices=indices,
-                               landmarks=lm2,
-                               wl=wl, wz=wz,
-                               iterations=nit,
-                               minimize=minimize,
-                               asymmetry=not sym)
-
-    print("# Error:", err)
-    print("# Solution:", facefit.gs_data)
+    facefit, err = facemesh_to_fg(
+        fitted, face2,
+        indices=indices,
+        landmarks=mesh2.landmarks,
+        wl=wl, wz=wz,
+        iterations=nit,
+        minimize=minimize,
+        asymmetry=not sym)
 
     if dst is not None:
         facefit.save_data(dst)
 
+    print("# Error:", err)
+    print("# Solution:", facefit.gs_data)
+
     if not show:
         return
 
-    plotting = [
-        (1, "Target", cropped1.vertices, cropped1.faces, lm1c),
-        (2, "Closest", facefit.vertices, facefit.triangles_only, lm2),
-        (3, "Model", cropped2.vertices, cropped2.faces, lm2c),
-        (4, "Deformation", targets, cropped2.faces, lm2c)
+    plots = [
+        (1, "Target", mesh1.vertices, mesh1.triangles, mesh1.landmarks, light, rotate, show_lm),
+        (2, "Closest", facefit.vertices, facefit.triangles, mesh2.landmarks, light, rotate, show_lm),
+        (3, "Same data", mesh2.vertices, mesh2.triangles, mesh2.landmarks, light, rotate, show_lm),
+        (4, "Deformation", fitted.vertices, fitted.triangles, fitted.landmarks, light, rotate, show_lm)
         ]
 
-    fig = plt.figure(figsize=plt.figaspect(1), facecolor='k', dpi=200)
-    for idx, title, verts, tris, lms in plotting:
-        ax = fig.add_subplot(2, 2, idx, projection="3d")
-        ax.set_title(title, color="w")
-        facemesh_plot((verts, tris), ax, rotation=rotate, light_alt=light)
-        if show_lm:
-            x, y, z = verts[lms,:].T
-            ax.scatter(x, y, z+1e-3, color="red", marker='x')
+    _plot(plots, 2, 2)
 
-    plt.show()
+
+def obj2fg (
+    cc, src, dst=None, *,
+    light=25, depth=0.0,
+    height=0.1, dist=1.0,
+    ws=0.01, wn=0.5,
+    wl=1.0, wz=0.0,
+    nit=1, minimize="error",
+    force=False, sym=False,
+    show=False, show_lm=False, rotate=0
+    ):
+    cc = CharacterCreator(cc)
+    cc.set_zero(cc.face)
+    mesh1 = Facemesh.fromfile(src)
+    mesh2 = Facemesh.fromfg(cc.face)
+
+    _set_landmarks(mesh1, depth=depth, light=light)
+    _set_landmarks(mesh2, depth=depth, light=light)
+
+    fitted, indices = _register(
+        mesh2, mesh1,
+        height=height, dist=dist,
+        ws=ws, wn=wn,
+        force=force)
+
+    facefit, err = facemesh_to_fg(
+        fitted, cc.face,
+        indices=indices,
+        landmarks=mesh2.landmarks,
+        wl=wl, wz=wz,
+        iterations=nit,
+        minimize=minimize,
+        asymmetry=not sym)
+
+    if dst is not None:
+        facefit.save_data(dst)
+
+    print("# Error:", err)
+    print("# Solution:", facefit.gs_data)
+
+    if not show:
+        return
+
+    plots = [
+        (1, "Target", mesh1.vertices, mesh1.triangles, mesh1.landmarks, light, rotate, show_lm),
+        (2, "Closest", facefit.vertices, facefit.triangles, mesh2.landmarks, light, rotate, show_lm),
+        (3, "Model", mesh2.vertices, mesh2.triangles, mesh2.landmarks, light, rotate, show_lm),
+        (4, "Deformation", fitted.vertices, fitted.triangles, fitted.landmarks, light, rotate, show_lm)
+        ]
+
+    _plot(plots, 2, 2)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from tkinter import ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from facesouls.character import CharacterCreator
-from facesouls.tools import facemesh_plot
+from facesouls.tools import faceplot
 
 
 class CharacterCreatorTk (tk.Tk):
@@ -288,16 +288,14 @@ class CCCanvas (FigureCanvasTkAgg):
         ax = fig.add_axes([0, 0, 1, 1], projection="3d")
         self.collection.clear()
         for sam in models:
-            verts = sam.vertices
-            triangles = sam.triangles_only
-            poly3d = facemesh_plot((verts, triangles), ax, persp="persp")
+            poly3d = faceplot(ax, sam.vertices, sam.triangles, persp="persp")
             self.collection.append((sam,poly3d))
         self.draw()
 
     def update (self):
         for sam,poly3d in self.collection:
             verts = sam.vertices
-            triangles = sam.triangles_only
+            triangles = sam.triangles
             poly3d.set_verts(verts[triangles])
         self.draw()
 
