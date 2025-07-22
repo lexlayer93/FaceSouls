@@ -38,9 +38,9 @@
 106, Cheeks, Cheekbone Protrusion, -10, 10, 0, 255;
 107, Cheeks, Cheeks, 10, -10, 0, 255;
 134, Lips, Lip Shape, 10, -10, 0, 255;
-135, Lips, Mouth Expression, 10, -10, 0, 255;
+137, Lips, Mouth Expression, 10, -10, 0, 255;
 136, Lips, Lip Fullness, -10, 10, 0, 255;
-137, Lips, Lip Size, 10, -10, 0, 255;
+135, Lips, Lip Size, 10, -10, 0, 255;
 138, Lips, Lip Protrusion, 10, -10, 0, 255;
 139, Lips, Lip Thickness, -10, 10, 0, 255;
 140, Mouth, Mouth Protrusion, 10, -10, 0, 255;

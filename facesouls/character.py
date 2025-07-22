@@ -115,7 +115,7 @@ class CharacterCreator (FaceGenerator):
             self.all_at_once = True
             self.update()
 
-    def save_values (self, fname, *, sort=False):
+    def save_values (self, fname, *, sort=True):
         out = ""
         if not sort:
             to_save = [slider for key,slider in self.sliders.items() if not slider.debug_only]

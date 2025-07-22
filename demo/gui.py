@@ -7,20 +7,18 @@ from facesouls.tools import faceplot
 
 
 class CharacterCreatorTk (tk.Tk):
-    def __init__ (self, cc=None, *args, **kwargs):
+    def __init__ (self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.character_creator = cc
         self.protocol("WM_DELETE_WINDOW", self.quit)
         self.title("Character Creator Demo")
         self.withdraw()
 
     def mainloop (self):
-        if self.character_creator is None:
-            path = tk.filedialog.askopenfilename(parent=self,
-                title="Open...",
-                filetypes=[("Character Creator files","*.zip *.zipbe")],
-                defaultextension=".zip")
-            self.character_creator = CharacterCreator(path)
+        path = tk.filedialog.askopenfilename(parent=self,
+            title="Open...",
+            filetypes=[("Character Creator files","*.zip *.zipbe")],
+            defaultextension=".zip")
+        self.character_creator = CharacterCreator.fromzip(path)
 
         editor = CCMainFrame(self)
         editor.pack(fill=tk.BOTH, expand=True)
